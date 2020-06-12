@@ -1,5 +1,5 @@
-#ifndef STMDSPSCANNER_H
-#define STMDSPSCANNER_H
+#ifndef STMDSP_HPP_
+#define STMDSP_HPP_
 
 #include <fstream>
 #include <set>
@@ -57,4 +57,5 @@ namespace stmdsp
     };
 }
 
-#endif // STMDSPSCANNER_H
+#endif // STMDSP_HPP_
+

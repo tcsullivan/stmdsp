@@ -1,4 +1,5 @@
 build
 ChibiOS_*
 **/.*
+gui/stmdspgui
 
