@@ -5,14 +5,18 @@
 #include <wx/dcclient.h>
 #include <wx/frame.h>
 #include <wx/stattext.h>
+#include <wx/timer.h>
 
 class MainFrame : public wxFrame
 {
     enum Id {
         Welcome = 1,
-        Single
+        Single,
+        RenderTimer
     };
 
+    bool m_is_rendering = false;
+    wxTimer *m_render_timer = nullptr;
     int m_radius = 10;
 
     const wxRect m_clipping_region = {20, 100, 600, 360};
@@ -22,9 +26,11 @@ public:
     {
         new wxStaticText(this, Id::Welcome, "Welcome to the GUI.", wxPoint(20, 20));
         new wxButton(this, Id::Single, "Single", wxPoint(20, 60));
+        m_render_timer = new wxTimer(this, Id::RenderTimer);
 
         Bind(wxEVT_BUTTON, &MainFrame::onSinglePressed, this, Id::Single);
         Bind(wxEVT_PAINT, &MainFrame::onPaint, this, wxID_ANY);
+        Bind(wxEVT_TIMER, &MainFrame::onRenderTimer, this, Id::RenderTimer);
     }
 
     void onPaint([[maybe_unused]] wxPaintEvent& pe) {
@@ -41,12 +47,22 @@ public:
 
     void onSinglePressed(wxCommandEvent& ce) {
         auto button = dynamic_cast<wxButton *>(ce.GetEventObject());
-        button->SetLabel("Nice");
+
+        if (!m_render_timer->IsRunning()) {
+            m_render_timer->Start(100);
+            button->SetLabel("Stop");
+        } else {
+            m_render_timer->Stop();
+            button->SetLabel("Single");
+        }
+    }
+
+    void onRenderTimer([[maybe_unused]] wxTimerEvent& te) {
         updateDrawing();
     }
 
     void updateDrawing() {
-        m_radius += 10;
+        m_radius++;
         this->RefreshRect(m_clipping_region);
     }
 };

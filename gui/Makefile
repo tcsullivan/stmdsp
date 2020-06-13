@@ -1,5 +1,5 @@
 CXX = g++-10
-CXXFLAGS = --std=c++20 \
+CXXFLAGS = --std=c++20 -ggdb -Og \
 		   -Wall -Wextra -pedantic \
 		   -Wno-deprecated-copy \
 		   $(shell wx-config --cxxflags)
