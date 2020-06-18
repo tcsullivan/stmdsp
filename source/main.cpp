@@ -18,6 +18,8 @@
 
 #include <array>
 
+static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
+
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
@@ -50,7 +52,7 @@ int main()
             if (char cmd; usbd.read(&cmd) > 0) {
                 switch (cmd) {
                 case 'r': // Read in analog signal
-                    adc.getSamples(&adc_samples[0], adc_samples.size());
+                    adc.getSamples(&adc_samples[0], 100);//adc_samples.size());
                     usbd.write(adc_samples.data(), adc_samples.size());
                     break;
                 case 'i': // Identify ourself as an stmdsp device

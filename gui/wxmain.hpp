@@ -1,7 +1,10 @@
 #ifndef WXMAIN_HPP_
 #define WXMAIN_HPP_
 
+#include "stmdsp.hpp"
+
 #include <wx/button.h>
+#include <wx/combobox.h>
 #include <wx/dcclient.h>
 #include <wx/frame.h>
 #include <wx/stattext.h>
@@ -12,6 +15,7 @@ class MainFrame : public wxFrame
     enum Id {
         Welcome = 1,
         Single,
+        SelectDevice,
         RenderTimer
     };
 
@@ -26,6 +30,14 @@ public:
     {
         new wxStaticText(this, Id::Welcome, "Welcome to the GUI.", wxPoint(20, 20));
         new wxButton(this, Id::Single, "Single", wxPoint(20, 60));
+        auto combo = new wxComboBox(this, Id::SelectDevice, "", wxPoint(470, 20), wxSize(150, 30));
+        combo->SetEditable(false);
+        stmdsp::scanner scanner;
+        for (auto& dev : scanner.scan())
+            combo->Append(dev);
+        if (combo->GetCount() > 0)
+            combo->SetSelection(0);
+
         m_render_timer = new wxTimer(this, Id::RenderTimer);
 
         Bind(wxEVT_BUTTON, &MainFrame::onSinglePressed, this, Id::Single);
