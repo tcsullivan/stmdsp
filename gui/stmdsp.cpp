@@ -6,12 +6,12 @@ namespace stmdsp
 {
     std::list<std::string>& scanner::scan()
     {
-        auto serialDevices = serial::list_ports();
-        for (auto& device : serialDevices) {
+        auto devices = serial::list_ports();
+        for (auto& device : devices) {
             if (device.hardware_id.find(STMDSP_USB_ID) != std::string::npos)
-                m_devices.emplace_front(device.port);
+                m_available_devices.emplace_front(device.port);
         }
 
-        return m_devices;
+        return m_available_devices;
     }
 }
