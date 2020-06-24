@@ -28,8 +28,7 @@ namespace stmdsp
     class device
     {
     public:
-        device(const std::string& file) :
-            m_serial(file, 115200, serial::Timeout::simpleTimeout(1000)) {}
+        device(const std::string& file);
 
         ~device() {
             m_serial.close();
@@ -39,19 +38,7 @@ namespace stmdsp
             return m_serial.isOpen() && (m_serial.write("i"), m_serial.read(6) == "stmdsp");
         }
 
-        std::vector<adcsample_t> sample(unsigned long int count = 1) {
-            if (connected()) {
-                m_serial.write(std::vector<uint8_t> {'r',
-                                                     static_cast<uint8_t>(count),
-                                                     static_cast<uint8_t>(count >> 8)});
-                std::vector<adcsample_t> data (count);
-                m_serial.read(reinterpret_cast<uint8_t *>(data.data()),
-                              data.size() * sizeof(adcsample_t));
-                return data;
-            } else {
-                return {};
-            }
-        }
+        std::vector<adcsample_t> sample(unsigned long int count = 1);
 
     private:
         serial::Serial m_serial;

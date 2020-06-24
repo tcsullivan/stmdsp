@@ -3,6 +3,8 @@
 
 #include "stmdsp.hpp"
 
+#include <future>
+#include <thread>
 #include <wx/button.h>
 #include <wx/combobox.h>
 #include <wx/dcclient.h>
@@ -21,22 +23,26 @@ class MainFrame : public wxFrame
 
     bool m_is_rendering = false;
     wxTimer *m_render_timer = nullptr;
-    int m_radius = 10;
+    wxComboBox *m_device_combo = nullptr;
 
     const wxRect m_clipping_region = {20, 100, 600, 360};
+
+    stmdsp::device *m_device = nullptr;
+    std::future<std::vector<stmdsp::adcsample_t>> m_device_samples_future;
+    std::vector<stmdsp::adcsample_t> m_device_samples;
 
 public:
     MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wxSize(640, 480))
     {
         new wxStaticText(this, Id::Welcome, "Welcome to the GUI.", wxPoint(20, 20));
         new wxButton(this, Id::Single, "Single", wxPoint(20, 60));
-        auto combo = new wxComboBox(this, Id::SelectDevice, "", wxPoint(470, 20), wxSize(150, 30));
-        combo->SetEditable(false);
+        m_device_combo = new wxComboBox(this, Id::SelectDevice, "", wxPoint(470, 20), wxSize(150, 30));
+        m_device_combo->SetEditable(false);
         stmdsp::scanner scanner;
         for (auto& dev : scanner.scan())
-            combo->Append(dev);
-        if (combo->GetCount() > 0)
-            combo->SetSelection(0);
+            m_device_combo->Append(dev);
+        if (m_device_combo->GetCount() > 0)
+            m_device_combo->SetSelection(0);
 
         m_render_timer = new wxTimer(this, Id::RenderTimer);
 
@@ -53,19 +59,47 @@ public:
         dc->SetPen(*wxBLACK_PEN);
         dc->DrawRectangle(m_clipping_region);
 
-        dc->SetPen(*wxRED_PEN);
-        dc->DrawCircle(320, 240, m_radius);
+        if (m_device_samples.size() > 0) {
+            dc->SetPen(*wxRED_PEN);
+            auto points = new wxPoint[m_device_samples.size()];
+            const float spacing = static_cast<float>(m_clipping_region.GetWidth()) / m_device_samples.size();
+            float x = 0;
+            for (auto ptr = points; auto sample : m_device_samples) {
+                *ptr++ = wxPoint {
+                    static_cast<int>(x),
+                    m_clipping_region.GetHeight() - sample * m_clipping_region.GetHeight() / 4096
+                };
+                x += spacing;
+            }
+            dc->DrawLines(m_device_samples.size(), points, m_clipping_region.GetX(), m_clipping_region.GetY());
+            delete[] points;
+        }
+    }
+
+    void doSingle() {
+        m_device_samples_future = std::async(std::launch::async,
+                                             [this]() { return m_device->sample(250); });
     }
 
     void onSinglePressed(wxCommandEvent& ce) {
         auto button = dynamic_cast<wxButton *>(ce.GetEventObject());
 
         if (!m_render_timer->IsRunning()) {
-            m_render_timer->Start(100);
-            button->SetLabel("Stop");
+            m_device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
+            if (m_device->connected()) {
+                doSingle();
+                m_render_timer->Start(100);
+                button->SetLabel("Stop");
+            } else {
+                delete m_device;
+                m_device = nullptr;
+            }
         } else {
             m_render_timer->Stop();
             button->SetLabel("Single");
+
+            delete m_device;
+            m_device = nullptr;
         }
     }
 
@@ -74,8 +108,10 @@ public:
     }
 
     void updateDrawing() {
-        m_radius++;
-        this->RefreshRect(m_clipping_region);
+        if (m_device_samples = m_device_samples_future.get(); m_device_samples.size() > 0)
+            this->RefreshRect(m_clipping_region);
+
+        doSingle();
     }
 };
 

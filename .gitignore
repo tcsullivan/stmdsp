@@ -3,4 +3,5 @@ ChibiOS_*
 **/.*
 gui/stmdspgui
 *.o
+perf*
 
