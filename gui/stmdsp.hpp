@@ -1,60 +1,49 @@
-#ifndef STMDSPSCANNER_H
-#define STMDSPSCANNER_H
+#ifndef STMDSP_HPP_
+#define STMDSP_HPP_
 
-#include <fstream>
-#include <set>
+#include <cstdint>
+#include <list>
+#include <serial/serial.h>
 #include <string>
 
 namespace stmdsp
 {
-    class device
-    {
-    public:
-        device(const std::string& path) :
-            m_path(path) {}
-
-        bool open() {
-            m_stream.open(m_path, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
-            return m_stream.is_open();
-        }
-
-        std::size_t read(char *buffer, std::size_t count) {
-            return m_stream.readsome(buffer, count);
-        }
-
-        std::size_t write(const char *buffer, std::size_t count) {
-            m_stream.write(buffer, count);
-            return m_stream.good() ? count : 0;
-        }
-
-        const std::string& path() const {
-            return m_path;
-        }
-
-        auto operator<=>(const device& other) const {
-            return m_path <=> other.m_path;
-        }
-
-    private:
-        std::string m_path;
-        std::fstream m_stream;
-    };
-
     class scanner
     {
     private:
-        constexpr static unsigned int STMDSP_VENDOR_ID = 0x0483;
-        constexpr static unsigned int STMDSP_DEVICE_ID = 0x5740;
+        constexpr static const char *STMDSP_USB_ID = "USB VID:PID=0483:5740";
 
     public:
-        void scan();
-        const auto& devices() const {
-            return m_devices;
+        std::list<std::string>& scan();
+        auto& devices() {
+            return m_available_devices;
         }
 
     private:
-        std::set<device> m_devices;
+        std::list<std::string> m_available_devices;
+    };
+
+    using adcsample_t = uint16_t;
+
+    class device
+    {
+    public:
+        device(const std::string& file);
+
+        ~device() {
+            m_serial.close();
+        }
+
+        bool connected() {
+            return m_serial.isOpen() && (m_serial.write("i"), m_serial.read(6) == "stmdsp");
+        }
+
+        std::vector<adcsample_t> sample(unsigned long int count = 1);
+
+    private:
+        serial::Serial m_serial;
     };
 }
 
-#endif // STMDSPSCANNER_H
+#endif // STMDSP_HPP_
+

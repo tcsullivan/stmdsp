@@ -18,10 +18,12 @@
 
 #include <array>
 
+static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
+
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
-static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 100)> adc_samples;
+static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 2048)> adc_samples;
 
 int main()
 {
@@ -47,11 +49,15 @@ int main()
 	while (true) {
         if (usbd.active()) {
             // Expect to receive a byte command 'packet'.
-            if (char cmd; usbd.read(&cmd) > 0) {
-                switch (cmd) {
+            if (char cmd[3]; usbd.read(&cmd, 1) > 0) {
+                switch (cmd[0]) {
                 case 'r': // Read in analog signal
-                    adc.getSamples(&adc_samples[0], adc_samples.size());
-                    usbd.write(adc_samples.data(), adc_samples.size());
+                    if (usbd.read(&cmd[1], 2) < 2)
+                        break;
+                    if (auto count = std::min(static_cast<unsigned int>(cmd[1] | (cmd[2] << 8)), adc_samples.size()); count > 0) {
+                        adc.getSamples(&adc_samples[0], count);
+                        usbd.write(adc_samples.data(), count * sizeof(adcsample_t));
+                    }
                     break;
                 case 'i': // Identify ourself as an stmdsp device
                     usbd.write("stmdsp", 6);
@@ -62,7 +68,7 @@ int main()
             }
         }
 
-		chThdSleepMilliseconds(250);
+		chThdSleepMilliseconds(1);
 	}
 }
 

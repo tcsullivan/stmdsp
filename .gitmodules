@@ -1,0 +1,6 @@
+[submodule "gui/gui/serial"]
+	path = gui/gui/serial
+	url = https://github.com/wjwwood/serial
+[submodule "gui/serial"]
+	path = gui/serial
+	url = https://github.com/wjwwood/serial
