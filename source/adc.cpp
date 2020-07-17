@@ -39,6 +39,40 @@ adcsample_t *ADCd::getSamples(adcsample_t *buffer, size_t count)
     return buffer;
 }
 
+void ADCd::setSampleRate(ADCdRate rate)
+{
+    uint32_t val = 0;
+
+    switch (rate) {
+    case ADCdRate::R2P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
+        break;
+    case ADCdRate::R6P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_6P5);
+        break;
+    case ADCdRate::R12P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5);
+        break;
+    case ADCdRate::R24P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5);
+        break;
+    case ADCdRate::R47P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);
+        break;
+    case ADCdRate::R92P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_92P5);
+        break;
+    case ADCdRate::R247P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_247P5);
+        break;
+    case ADCdRate::R640P5:
+        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_640P5);
+        break;
+    }
+
+    m_adc_group_config.smpr[0] = val;
+}
+
 void ADCd::initPins()
 {
     palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
