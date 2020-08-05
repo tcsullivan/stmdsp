@@ -12,28 +12,12 @@
 #ifndef STMDSP_USBSERIAL_HPP_
 #define STMDSP_USBSERIAL_HPP_
 
-#include "usbcfg.h"
+#include "hal.h"
 
-#include <cstddef>
-
-class USBSeriald
-{
-public:
-    constexpr explicit USBSeriald(SerialUSBDriver& driver) :
-        m_driver(&driver) {}
-
-    void start();
-
-    bool active() const;
-
-    std::size_t read(void *buffer, std::size_t count = 1);
-    std::size_t write(const void *buffer, std::size_t count = 1);
-
-private:
-    SerialUSBDriver *m_driver;
-
-    void initPins();
-};
+void usbserial_init();
+bool usbserial_is_active();
+size_t usbserial_read(void *buffer, size_t count);
+size_t usbserial_write(const void *buffer, size_t count);
 
 #endif // STMDSP_USBSERIAL_HPP_
 

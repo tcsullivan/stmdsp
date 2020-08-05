@@ -11,14 +11,17 @@
 
 #include "usbserial.hpp"
 
-#include "hal.h"
+#include "usbcfg.h"
 
-void USBSeriald::start()
+constexpr static const auto sdud = &SDU1;
+
+void usbserial_init()
 {
-    initPins();
+    palSetPadMode(GPIOA, 11, PAL_MODE_ALTERNATE(10));
+    palSetPadMode(GPIOA, 12, PAL_MODE_ALTERNATE(10));
 
-    sduObjectInit(m_driver);
-    sduStart(m_driver, &serusbcfg);
+    sduObjectInit(sdud);
+    sduStart(sdud, &serusbcfg);
 
     // Reconnect bus so device can re-enumerate on reset
     usbDisconnectBus(serusbcfg.usbp);
@@ -27,26 +30,20 @@ void USBSeriald::start()
     usbConnectBus(serusbcfg.usbp);
 }
 
-bool USBSeriald::active() const
+bool usbserial_is_active()
 {
-    return m_driver->config->usbp->state == USB_ACTIVE;
+    return sdud->config->usbp->state == USB_ACTIVE;
 }
 
-std::size_t USBSeriald::read(void *buffer, std::size_t count)
+size_t usbserial_read(void *buffer, size_t count)
 {
-    auto *bss = reinterpret_cast<BaseSequentialStream *>(m_driver);
+    auto bss = reinterpret_cast<BaseSequentialStream *>(sdud);
     return streamRead(bss, static_cast<uint8_t *>(buffer), count);
 }
 
-std::size_t USBSeriald::write(const void *buffer, std::size_t count)
+size_t usbserial_write(const void *buffer, size_t count)
 {
-    auto *bss = reinterpret_cast<BaseSequentialStream *>(m_driver);
+    auto bss = reinterpret_cast<BaseSequentialStream *>(sdud);
     return streamWrite(bss, static_cast<const uint8_t *>(buffer), count);
-}
-
-void USBSeriald::initPins()
-{
-    palSetPadMode(GPIOA, 11, PAL_MODE_ALTERNATE(10));
-    palSetPadMode(GPIOA, 12, PAL_MODE_ALTERNATE(10));
 }
 

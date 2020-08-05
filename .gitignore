@@ -2,6 +2,6 @@ build
 ChibiOS_*
 **/.*
 gui/stmdspgui
-*.o
+**/*.o
 perf*
 

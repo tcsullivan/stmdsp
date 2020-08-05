@@ -1,6 +1,6 @@
 /**
  * @file adc.cpp
- * @brief Wrapper for ChibiOS's ADCDriver.
+ * @brief Manages signal reading through the ADC.
  *
  * Copyright (C) 2020 Clyne Sullivan
  *
@@ -11,77 +11,96 @@
 
 #include "adc.hpp"
 
-const GPTConfig ADCd::m_gpt_config = {
-  .frequency    =  1000000,
-  .callback     =  NULL,
-  .cr2          =  TIM_CR2_MMS_1,   /* MMS = 010 = TRGO on Update Event.    */
-  .dier         =  0
+constexpr static const auto adcd = &ADCD1;
+constexpr static const auto gptd = &GPTD4;
+
+constexpr static const ADCConfig adc_config = {
+    .difsel = 0
 };
 
-void ADCd::start()
+void adc_read_callback(ADCDriver *);
+
+/*constexpr*/ static ADCConversionGroup adc_group_config = {
+    .circular = false,
+    .num_channels = 1,
+    .end_cb = adc_read_callback,
+    .error_cb = nullptr,
+    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(12),  /* TIM4_TRGO */
+    .cfgr2 = 0,
+    .tr1 = ADC_TR(0, 4095),
+    .smpr = {
+        ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_247P5), 0
+    },
+    .sqr = {
+        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN5),
+        0, 0, 0
+    }
+};
+
+constexpr static const GPTConfig gpt_config = {
+    .frequency = 1000000,
+    .callback = nullptr,
+    .cr2 = TIM_CR2_MMS_1, /* TRGO */
+    .dier = 0
+};
+
+static bool adc_is_read_finished = false;
+
+void adc_init()
 {
-    initPins();
-    gptStart(m_gptd, &m_gpt_config);
+    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
 
-    m_adc_config.difsel = 0;
-    m_adc_config.adcdinst = this;
-
-    adcStart(m_adcd, &m_adc_config);
-    adcSTM32EnableVREF(m_adcd);
+    gptStart(gptd, &gpt_config);
+    adcStart(adcd, &adc_config);
+    adcSTM32EnableVREF(adcd);
 }
 
-adcsample_t *ADCd::getSamples(adcsample_t *buffer, size_t count)
+adcsample_t *adc_read(adcsample_t *buffer, size_t count)
 {
-    m_is_adc_finished = false;
-    adcStartConversion(m_adcd, &m_adc_group_config, buffer, count);
-    gptStartContinuous(m_gptd, 100); // 10kHz
-    while (!m_is_adc_finished);
+    adc_is_read_finished = false;
+    adcStartConversion(adcd, &adc_group_config, buffer, count);
+    gptStartContinuous(gptd, 100); // 10kHz
+    while (!adc_is_read_finished);
     return buffer;
 }
 
-void ADCd::setSampleRate(ADCdRate rate)
+void adc_read_callback([[maybe_unused]] ADCDriver *driver)
+{
+    gptStopTimer(gptd);
+    adc_is_read_finished = true;
+}
+
+void adc_set_rate(ADCRate rate)
 {
     uint32_t val = 0;
 
     switch (rate) {
-    case ADCdRate::R2P5:
+    case ADCRate::R2P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
         break;
-    case ADCdRate::R6P5:
+    case ADCRate::R6P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_6P5);
         break;
-    case ADCdRate::R12P5:
+    case ADCRate::R12P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5);
         break;
-    case ADCdRate::R24P5:
+    case ADCRate::R24P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5);
         break;
-    case ADCdRate::R47P5:
+    case ADCRate::R47P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);
         break;
-    case ADCdRate::R92P5:
+    case ADCRate::R92P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_92P5);
         break;
-    case ADCdRate::R247P5:
+    case ADCRate::R247P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_247P5);
         break;
-    case ADCdRate::R640P5:
+    case ADCRate::R640P5:
         val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_640P5);
         break;
     }
 
-    m_adc_group_config.smpr[0] = val;
-}
-
-void ADCd::initPins()
-{
-    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
-}
-
-void ADCd::adcEndCallback(ADCDriver *adcd)
-{
-    auto *_this = reinterpret_cast<const ADCdConfig *>(adcd->config)->adcdinst;
-    gptStopTimer(_this->m_gptd);
-    _this->m_is_adc_finished = true;
+    adc_group_config.smpr[0] = val;
 }
 

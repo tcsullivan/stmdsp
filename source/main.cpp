@@ -24,6 +24,7 @@ static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
 static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 2048)> adc_samples;
+static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, 2048)> dac_samples;
 
 int main()
 {
@@ -32,35 +33,39 @@ int main()
 
     palSetPadMode(GPIOA, 5,  PAL_MODE_OUTPUT_PUSHPULL); // LED
 
-    ADCd adc (ADCD1, GPTD4);
-    adc.start();
+    adc_init();
+    dac_init();
+    usbserial_init();
 
-    //DACd dac (DACD1, {
-    //    .init         = 0,
-    //    .datamode     = DAC_DHRM_12BIT_RIGHT,
-    //    .cr           = 0
-    //});
-    //dac.start();
-    //dac.write(0, 1024);
-
-    USBSeriald usbd (SDU1);
-    usbd.start();
-
+    static unsigned int dac_sample_count = 2048;
 	while (true) {
-        if (usbd.active()) {
+        if (usbserial_is_active()) {
             // Expect to receive a byte command 'packet'.
-            if (char cmd[3]; usbd.read(&cmd, 1) > 0) {
+            if (char cmd[3]; usbserial_read(&cmd, 1) > 0) {
                 switch (cmd[0]) {
                 case 'r': // Read in analog signal
-                    if (usbd.read(&cmd[1], 2) < 2)
+                    if (usbserial_read(&cmd[1], 2) < 2)
                         break;
                     if (auto count = std::min(static_cast<unsigned int>(cmd[1] | (cmd[2] << 8)), adc_samples.size()); count > 0) {
-                        adc.getSamples(&adc_samples[0], count);
-                        usbd.write(adc_samples.data(), count * sizeof(adcsample_t));
+                        adc_read(&adc_samples[0], count);
+                        usbserial_write(adc_samples.data(), count * sizeof(adcsample_t));
                     }
                     break;
+                case 'W':
+                    if (usbserial_read(&cmd[1], 2) < 2)
+                        break;
+                    if (auto count = std::min(static_cast<unsigned int>(cmd[1] | (cmd[2] << 8)), dac_samples.size()); count > 0)
+                        dac_sample_count = count;
+                    else
+                        dac_write_stop();
+                    break;
+                case 'w':
+                    if (usbserial_read(&dac_samples[0], 2 * dac_sample_count) != 2 * dac_sample_count)
+                        break;
+                    dac_write_start(&dac_samples[0], dac_sample_count);
+                    break;
                 case 'i': // Identify ourself as an stmdsp device
-                    usbd.write("stmdsp", 6);
+                    usbserial_write("stmdsp", 6);
                     break;
                 default:
                     break;

@@ -1,6 +1,6 @@
 /**
  * @file dac.hpp
- * @brief Wrapper for ChibiOS's DACDriver.
+ * @brief Manages signal creation using the DAC.
  *
  * Copyright (C) 2020 Clyne Sullivan
  *
@@ -14,22 +14,9 @@
 
 #include "hal.h"
 
-class DACd
-{
-public:
-    constexpr explicit DACd(DACDriver& driver, const DACConfig& config) :
-        m_driver(&driver), m_config(config) {}
-
-    void init();
-
-    void write(unsigned int channel, uint16_t value);
-
-private:
-    DACDriver *m_driver;
-    DACConfig m_config;
-
-    void initPins();
-};
+void dac_init();
+void dac_write_start(dacsample_t *buffer, size_t count);
+void dac_write_stop();
 
 #endif // STMDSP_DAC_HPP_
 
