@@ -14,9 +14,12 @@
 
 #include "hal.h"
 
-void dac_init();
-void dac_write_start(dacsample_t *buffer, size_t count);
-void dac_write_stop();
+namespace dac
+{
+    void init();
+    void write_start(dacsample_t *buffer, size_t count);
+    void write_stop();
+}
 
 #endif // STMDSP_DAC_HPP_
 

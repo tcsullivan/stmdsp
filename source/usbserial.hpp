@@ -14,10 +14,14 @@
 
 #include "hal.h"
 
-void usbserial_init();
-bool usbserial_is_active();
-size_t usbserial_read(void *buffer, size_t count);
-size_t usbserial_write(const void *buffer, size_t count);
+namespace usbserial
+{
+    void init();
+    bool is_active();
+
+    size_t read(void *buffer, size_t count);
+    size_t write(const void *buffer, size_t count);
+}
 
 #endif // STMDSP_USBSERIAL_HPP_
 

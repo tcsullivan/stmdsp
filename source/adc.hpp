@@ -14,20 +14,23 @@
 
 #include "hal.h"
 
-enum class ADCRate {
-    R2P5,
-    R6P5,
-    R12P5,
-    R24P5,
-    R47P5,
-    R92P5,
-    R247P5,
-    R640P5
-};
-
-void adc_init();
-adcsample_t *adc_read(adcsample_t *buffer, size_t count);
-void adc_set_rate(ADCRate rate);
+namespace adc
+{
+    enum class rate {
+        R2P5,
+        R6P5,
+        R12P5,
+        R24P5,
+        R47P5,
+        R92P5,
+        R247P5,
+        R640P5
+    };
+    
+    void init();
+    adcsample_t *read(adcsample_t *buffer, size_t count);
+    void set_rate(rate r);
+}
 
 #endif // STMDSP_ADC_HPP_
 
