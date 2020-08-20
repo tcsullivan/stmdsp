@@ -34,24 +34,27 @@ constexpr static const GPTConfig gpt_config = {
   .dier = 0
 };
 
-void dac_init()
+namespace dac
 {
-    palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
-    //palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
-
-    dacStart(dacd, &dac_config);
-    gptStart(gptd, &gpt_config);
-}
-
-void dac_write_start(dacsample_t *buffer, size_t count)
-{
-    dacStartConversion(dacd, &dac_group_config, buffer, count);
-    gptStartContinuous(gptd, 1);
-}
-
-void dac_write_stop()
-{
-    gptStopTimer(gptd);
-    dacStopConversion(dacd);
+    void init()
+    {
+        palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
+        //palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
+    
+        dacStart(dacd, &dac_config);
+        gptStart(gptd, &gpt_config);
+    }
+    
+    void write_start(dacsample_t *buffer, size_t count)
+    {
+        dacStartConversion(dacd, &dac_group_config, buffer, count);
+        gptStartContinuous(gptd, 1);
+    }
+    
+    void write_stop()
+    {
+        gptStopTimer(gptd);
+        dacStopConversion(dacd);
+    }
 }
 

@@ -18,7 +18,7 @@ constexpr static const ADCConfig adc_config = {
     .difsel = 0
 };
 
-void adc_read_callback(ADCDriver *);
+static void adc_read_callback(ADCDriver *);
 
 /*constexpr*/ static ADCConversionGroup adc_group_config = {
     .circular = false,
@@ -45,51 +45,88 @@ constexpr static const GPTConfig gpt_config = {
 };
 
 static bool adc_is_read_finished = false;
-static bool adc_is_read_continuous = false;
 static adcsample_t *adc_current_buffer = nullptr;
 static size_t adc_current_buffer_size = 0;
-static adc_operation_t adc_operation_func = nullptr;
+static adc::operation_t adc_operation_func = nullptr;
 
-void adc_init()
+namespace adc
 {
-    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
+    void init()
+    {
+        palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
+    
+        gptStart(gptd, &gpt_config);
+        adcStart(adcd, &adc_config);
+        adcSTM32EnableVREF(adcd);
+    }
+    
+    adcsample_t *read(adcsample_t *buffer, size_t count)
+    {
+        adc_is_read_finished = false;
+        adc_group_config.circular = false;
+        adcStartConversion(adcd, &adc_group_config, buffer, count);
+        gptStartContinuous(gptd, 100); // 10kHz
+        while (!adc_is_read_finished);
+        return buffer;
+    }
 
-    gptStart(gptd, &gpt_config);
-    adcStart(adcd, &adc_config);
-    adcSTM32EnableVREF(adcd);
-}
-
-adcsample_t *adc_read(adcsample_t *buffer, size_t count)
-{
-    adc_is_read_finished = false;
-    adc_is_read_continuous = false;
-    adc_group_config.circular = false;
-    adcStartConversion(adcd, &adc_group_config, buffer, count);
-    gptStartContinuous(gptd, 100); // 10kHz
-    while (!adc_is_read_finished);
-    return buffer;
-}
-
-void adc_read_start(adc_operation_t operation_func, adcsample_t *buffer, size_t count)
-{
-    adc_is_read_continuous = true;
-    adc_current_buffer = buffer;
-    adc_current_buffer_size = count;
-    adc_operation_func = operation_func;
-    adc_group_config.circular = true;
-    adcStartConversion(adcd, &adc_group_config, buffer, count);
-    gptStartContinuous(gptd, 100); // 10kHz
-}
-
-void adc_read_stop()
-{
-    adc_is_read_continuous = false;
-    gptStopTimer(gptd);
+    void read_start(operation_t operation_func, adcsample_t *buffer, size_t count)
+    {
+        adc_current_buffer = buffer;
+        adc_current_buffer_size = count;
+        adc_operation_func = operation_func;
+        adc_group_config.circular = true;
+        adcStartConversion(adcd, &adc_group_config, buffer, count);
+        gptStartContinuous(gptd, 100); // 10kHz
+    }
+    
+    void read_stop()
+    {
+        gptStopTimer(gptd);
+        adc_group_config.circular = false;
+        adc_current_buffer = nullptr;
+        adc_current_buffer_size = 0;
+        adc_operation_func = nullptr;
+    }
+ 
+    void set_rate(rate r)
+    {
+        uint32_t val = 0;
+    
+        switch (r) {
+        case rate::R2P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
+            break;
+        case rate::R6P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_6P5);
+            break;
+        case rate::R12P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5);
+            break;
+        case rate::R24P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5);
+            break;
+        case rate::R47P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);
+            break;
+        case rate::R92P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_92P5);
+            break;
+        case rate::R247P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_247P5);
+            break;
+        case rate::R640P5:
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_640P5);
+            break;
+        }
+    
+        adc_group_config.smpr[0] = val;
+    }
 }
 
 void adc_read_callback(ADCDriver *driver)
 {
-    if (!adc_is_read_continuous) {
+    if (!adc_group_config.circular) {
         gptStopTimer(gptd);
         adc_is_read_finished = true;
     } else if (adc_operation_func != nullptr) {
@@ -102,39 +139,5 @@ void adc_read_callback(ADCDriver *driver)
             adc_operation_func(adc_current_buffer + half_size, half_size);
         }
     }
-}
-
-void adc_set_rate(ADCRate rate)
-{
-    uint32_t val = 0;
-
-    switch (rate) {
-    case ADCRate::R2P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
-        break;
-    case ADCRate::R6P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_6P5);
-        break;
-    case ADCRate::R12P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5);
-        break;
-    case ADCRate::R24P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5);
-        break;
-    case ADCRate::R47P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);
-        break;
-    case ADCRate::R92P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_92P5);
-        break;
-    case ADCRate::R247P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_247P5);
-        break;
-    case ADCRate::R640P5:
-        val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_640P5);
-        break;
-    }
-
-    adc_group_config.smpr[0] = val;
 }
 
