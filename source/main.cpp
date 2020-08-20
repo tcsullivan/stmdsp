@@ -26,6 +26,8 @@ CC_ALIGN(CACHE_LINE_SIZE)
 static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 2048)> adc_samples;
 static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, 2048)> dac_samples;
 
+static void signal_operate(adcsample_t *buffer, size_t count);
+
 int main()
 {
     halInit();
@@ -51,6 +53,12 @@ int main()
                         usbserial_write(adc_samples.data(), count * sizeof(adcsample_t));
                     }
                     break;
+                case 'R':
+                    adc_read_start(signal_operate, &adc_samples[0], adc_samples.size() * sizeof(adcsample_t));
+                    break;
+                case 'S':
+                    adc_read_stop();
+                    break;
                 case 'W':
                     if (usbserial_read(&cmd[1], 2) < 2)
                         break;
@@ -75,5 +83,10 @@ int main()
 
 		chThdSleepMilliseconds(1);
 	}
+}
+
+void signal_operate([[maybe_unused]] adcsample_t *buffer, [[maybe_unused]] size_t count)
+{
+
 }
 

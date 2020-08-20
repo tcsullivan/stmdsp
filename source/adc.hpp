@@ -25,8 +25,12 @@ enum class ADCRate {
     R640P5
 };
 
+using adc_operation_t = void (*)(adcsample_t *buffer, size_t count);
+
 void adc_init();
 adcsample_t *adc_read(adcsample_t *buffer, size_t count);
+void adc_read_start(adc_operation_t operation_func, adcsample_t *buffer, size_t count);
+void adc_read_stop();
 void adc_set_rate(ADCRate rate);
 
 #endif // STMDSP_ADC_HPP_

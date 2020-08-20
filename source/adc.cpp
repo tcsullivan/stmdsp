@@ -45,6 +45,10 @@ constexpr static const GPTConfig gpt_config = {
 };
 
 static bool adc_is_read_finished = false;
+static bool adc_is_read_continuous = false;
+static adcsample_t *adc_current_buffer = nullptr;
+static size_t adc_current_buffer_size = 0;
+static adc_operation_t adc_operation_func = nullptr;
 
 void adc_init()
 {
@@ -58,16 +62,46 @@ void adc_init()
 adcsample_t *adc_read(adcsample_t *buffer, size_t count)
 {
     adc_is_read_finished = false;
+    adc_is_read_continuous = false;
+    adc_group_config.circular = false;
     adcStartConversion(adcd, &adc_group_config, buffer, count);
     gptStartContinuous(gptd, 100); // 10kHz
     while (!adc_is_read_finished);
     return buffer;
 }
 
-void adc_read_callback([[maybe_unused]] ADCDriver *driver)
+void adc_read_start(adc_operation_t operation_func, adcsample_t *buffer, size_t count)
 {
+    adc_is_read_continuous = true;
+    adc_current_buffer = buffer;
+    adc_current_buffer_size = count;
+    adc_operation_func = operation_func;
+    adc_group_config.circular = true;
+    adcStartConversion(adcd, &adc_group_config, buffer, count);
+    gptStartContinuous(gptd, 100); // 10kHz
+}
+
+void adc_read_stop()
+{
+    adc_is_read_continuous = false;
     gptStopTimer(gptd);
-    adc_is_read_finished = true;
+}
+
+void adc_read_callback(ADCDriver *driver)
+{
+    if (!adc_is_read_continuous) {
+        gptStopTimer(gptd);
+        adc_is_read_finished = true;
+    } else if (adc_operation_func != nullptr) {
+        auto half_size = adc_current_buffer_size / 2;
+        if (driver->state == ADC_ACTIVE) {
+            // Half full
+            adc_operation_func(adc_current_buffer, half_size);
+        } else if (driver->state == ADC_COMPLETE) {
+            // Second half full
+            adc_operation_func(adc_current_buffer + half_size, half_size);
+        }
+    }
 }
 
 void adc_set_rate(ADCRate rate)
