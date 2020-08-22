@@ -19,12 +19,18 @@
 #include <array>
 
 static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
+static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
 static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 2048)> adc_samples;
+#if CACHE_LINE_SIZE > 0
+CC_ALIGN(CACHE_LINE_SIZE)
+#endif
 static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, 2048)> dac_samples;
+
+static volatile bool signal_operate_done = false;
 
 static void signal_operate(adcsample_t *buffer, size_t count);
 
@@ -54,10 +60,20 @@ int main()
                     }
                     break;
                 case 'R':
-                    adc::read_start(signal_operate, &adc_samples[0], adc_samples.size() * sizeof(adcsample_t));
+                    dac_samples.fill(0);
+                    adc::read_start(signal_operate, &adc_samples[0], adc_samples.size());
+                    dac::write_start(&dac_samples[0], dac_samples.size());
+                    break;
+                case 's':
+                    while (!signal_operate_done);
+                    usbserial::write(dac_samples.data(), dac_samples.size() * sizeof(adcsample_t));
                     break;
                 case 'S':
+                    dac::write_stop();
                     adc::read_stop();
+                    break;
+                case 'e':
+                    
                     break;
                 case 'W':
                     if (usbserial::read(&cmd[1], 2) < 2)
@@ -85,8 +101,10 @@ int main()
 	}
 }
 
-void signal_operate([[maybe_unused]] adcsample_t *buffer, [[maybe_unused]] size_t count)
+void signal_operate(adcsample_t *buffer, size_t count)
 {
-
+    auto dac_buffer = &dac_samples[buffer == &adc_samples[0] ? 0 : 1024];
+    std::copy(buffer, buffer + count, dac_buffer);
+    signal_operate_done = buffer == &adc_samples[1024];
 }
 

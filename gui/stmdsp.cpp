@@ -16,7 +16,14 @@ namespace stmdsp
     }
 
     device::device(const std::string& file) :
-        m_serial(file, 230400, serial::Timeout::simpleTimeout(50)) {}
+        m_serial(file, 230400, serial::Timeout::simpleTimeout(50))
+    {
+        if (m_serial.isOpen()) {
+           m_serial.write("i");
+           if (m_serial.read(6) != "stmdsp")
+               m_serial.close();
+        }
+    }
 
     std::vector<adcsample_t> device::sample(unsigned long int count) {
         if (connected()) {
@@ -27,11 +34,29 @@ namespace stmdsp
             };
             m_serial.write(request, 3);
             std::vector<adcsample_t> data (count);
-            m_serial.read(reinterpret_cast<uint8_t *>(data.data()),
-                          data.size() * sizeof(adcsample_t));
+            m_serial.read(reinterpret_cast<uint8_t *>(data.data()), data.size() * sizeof(adcsample_t));
             return data;
         } else {
             return {};
         }
+    }
+
+    void device::continuous_start() {
+        if (connected())
+            m_serial.write("R");
+    }
+
+    std::vector<adcsample_t> device::continuous_read() {
+        if (connected()) {
+            m_serial.write("s");
+            std::vector<adcsample_t> data (2048);
+            m_serial.read(reinterpret_cast<uint8_t *>(data.data()), 2048 * sizeof(adcsample_t));
+            return data;
+        }
+    }
+
+    void device::continuous_stop() {
+        if (connected())
+            m_serial.write("S");
     }
 }

@@ -78,7 +78,7 @@ public:
 
     void doSingle() {
         m_device_samples_future = std::async(std::launch::async,
-                                             [this]() { return m_device->sample(250); });
+                                             [this]() { return m_device->continuous_read(); });
     }
 
     void onSinglePressed(wxCommandEvent& ce) {
@@ -87,8 +87,10 @@ public:
         if (!m_render_timer->IsRunning()) {
             m_device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
             if (m_device->connected()) {
-                doSingle();
-                m_render_timer->Start(100);
+                m_device->continuous_start();
+                m_device_samples_future = std::async(std::launch::async,
+                                                     []() { return decltype(m_device_samples)(); });
+                m_render_timer->Start(1000);
                 button->SetLabel("Stop");
             } else {
                 delete m_device;
@@ -96,6 +98,7 @@ public:
             }
         } else {
             m_render_timer->Stop();
+            m_device->continuous_stop();
             button->SetLabel("Single");
 
             delete m_device;

@@ -77,7 +77,7 @@ namespace adc
         adc_operation_func = operation_func;
         adc_group_config.circular = true;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 100); // 10kHz
+        gptStartContinuous(gptd, 1000); // 10kHz
     }
     
     void read_stop()
@@ -131,13 +131,10 @@ void adc_read_callback(ADCDriver *driver)
         adc_is_read_finished = true;
     } else if (adc_operation_func != nullptr) {
         auto half_size = adc_current_buffer_size / 2;
-        if (driver->state == ADC_ACTIVE) {
-            // Half full
-            adc_operation_func(adc_current_buffer, half_size);
-        } else if (driver->state == ADC_COMPLETE) {
-            // Second half full
+        if (adcIsBufferComplete(driver))
             adc_operation_func(adc_current_buffer + half_size, half_size);
-        }
+        else
+            adc_operation_func(adc_current_buffer, half_size);
     }
 }
 

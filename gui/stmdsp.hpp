@@ -35,10 +35,14 @@ namespace stmdsp
         }
 
         bool connected() {
-            return m_serial.isOpen() && (m_serial.write("i"), m_serial.read(6) == "stmdsp");
+            return m_serial.isOpen();
         }
 
         std::vector<adcsample_t> sample(unsigned long int count = 1);
+
+        void continuous_start();
+        std::vector<adcsample_t> continuous_read();
+        void continuous_stop();
 
     private:
         serial::Serial m_serial;
