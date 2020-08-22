@@ -12,7 +12,7 @@
 #include "dac.hpp"
 
 constexpr static const auto dacd = &DACD1;
-constexpr static const auto gptd = &GPTD5;
+constexpr static const auto gptd = &GPTD6;
 
 constexpr static const DACConfig dac_config = {
     .init = 0,
@@ -24,11 +24,11 @@ constexpr static const DACConversionGroup dac_group_config = {
   .num_channels = 1,
   .end_cb = nullptr,
   .error_cb = nullptr,
-  .trigger = DAC_TRG(3)
+  .trigger = DAC_TRG(0)
 };
 
 constexpr static const GPTConfig gpt_config = {
-  .frequency = 500000,
+  .frequency = 1000000,
   .callback = nullptr,
   .cr2 = TIM_CR2_MMS_1, /* TRGO */
   .dier = 0
@@ -48,7 +48,7 @@ namespace dac
     void write_start(dacsample_t *buffer, size_t count)
     {
         dacStartConversion(dacd, &dac_group_config, buffer, count);
-        gptStartContinuous(gptd, 1);
+        gptStartContinuous(gptd, 100);
     }
     
     void write_stop()

@@ -77,7 +77,7 @@ namespace adc
         adc_operation_func = operation_func;
         adc_group_config.circular = true;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 1000); // 10kHz
+        gptStartContinuous(gptd, 100); // 10kHz
     }
     
     void read_stop()
