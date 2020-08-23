@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstring>
 
-extern void *elf_load_offset;
 static const unsigned char elf_header[] = { '\177', 'E', 'L', 'F' };
 
 template<typename T>
@@ -17,10 +16,10 @@ static Elf32_Shdr *find_section(Elf32_Ehdr *ehdr, const char *name);
 
 namespace elf {
 
-entry_t elf_load(void *elf_data)
+entry_t load(void *elf_data, void *elf_load_offset)
 {
     auto ehdr = reinterpret_cast<Elf32_Ehdr *>(elf_data);
-    if (std::equal(ehdr->e_ident, ehdr->e_ident + 4, elf_header))
+    if (!std::equal(ehdr->e_ident, ehdr->e_ident + 4, elf_header))
         return nullptr;
 
     auto phdr = ptr_from_offset<Elf32_Phdr *>(elf_data, ehdr->e_phoff);
@@ -31,6 +30,8 @@ entry_t elf_load(void *elf_data)
                         phdr->p_filesz);
             //break;
         }
+
+        phdr = ptr_from_offset<Elf32_Phdr *>(phdr, ehdr->e_phentsize);
     }
 
     // Zero .bss section
@@ -53,7 +54,11 @@ entry_t elf_load(void *elf_data)
     //                  [elf_load_offset](auto func) { (func + elf_load_offset)(); });
     //}
 
-    return ptr_from_offset<entry_t>(elf_load_offset, ehdr->e_entry);
+    // Find filter code start
+    if (auto filter = find_section(ehdr, ".process_data"); filter)
+        return ptr_from_offset<entry_t>(elf_load_offset, filter->sh_addr | 1); // OR 1 to enable thumb
+    else
+        return nullptr;
 }
 
 } // namespace elf

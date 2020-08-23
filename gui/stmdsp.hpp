@@ -44,6 +44,8 @@ namespace stmdsp
         std::vector<adcsample_t> continuous_read();
         void continuous_stop();
 
+        void upload_filter(unsigned char *buffer, size_t size);
+
     private:
         serial::Serial m_serial;
     };

@@ -53,10 +53,25 @@ namespace stmdsp
             m_serial.read(reinterpret_cast<uint8_t *>(data.data()), 2048 * sizeof(adcsample_t));
             return data;
         }
+
+        return {};
     }
 
     void device::continuous_stop() {
         if (connected())
             m_serial.write("S");
+    }
+
+    void device::upload_filter(unsigned char *buffer, size_t size) {
+        if (connected()) {
+            uint8_t request[3] = {
+                'e',
+                static_cast<uint8_t>(size),
+                static_cast<uint8_t>(size >> 8)
+            };
+            m_serial.write(request, 3);
+
+            m_serial.write(buffer, size);
+        }
     }
 }

@@ -8,9 +8,11 @@
 #include <wx/button.h>
 #include <wx/combobox.h>
 #include <wx/dcclient.h>
+#include <wx/filedlg.h>
 #include <wx/frame.h>
 #include <wx/stattext.h>
 #include <wx/timer.h>
+#include <wx/wfstream.h>
 
 class MainFrame : public wxFrame
 {
@@ -18,6 +20,7 @@ class MainFrame : public wxFrame
         Welcome = 1,
         Single,
         SelectDevice,
+        UploadFilter,
         RenderTimer
     };
 
@@ -36,6 +39,7 @@ public:
     {
         new wxStaticText(this, Id::Welcome, "Welcome to the GUI.", wxPoint(20, 20));
         new wxButton(this, Id::Single, "Single", wxPoint(20, 60));
+        new wxButton(this, Id::UploadFilter, "Upload Filter", wxPoint(120, 60));
         m_device_combo = new wxComboBox(this, Id::SelectDevice, "", wxPoint(470, 20), wxSize(150, 30));
         m_device_combo->SetEditable(false);
         stmdsp::scanner scanner;
@@ -47,6 +51,7 @@ public:
         m_render_timer = new wxTimer(this, Id::RenderTimer);
 
         Bind(wxEVT_BUTTON, &MainFrame::onSinglePressed, this, Id::Single);
+        Bind(wxEVT_BUTTON, &MainFrame::onUploadPressed, this, Id::UploadFilter);
         Bind(wxEVT_PAINT, &MainFrame::onPaint, this, wxID_ANY);
         Bind(wxEVT_TIMER, &MainFrame::onRenderTimer, this, Id::RenderTimer);
     }
@@ -103,6 +108,22 @@ public:
 
             delete m_device;
             m_device = nullptr;
+        }
+    }
+
+    void onUploadPressed(wxCommandEvent& ce) {
+        wxFileDialog dialog (this, "Select filter to upload", "", "", "*.so",
+                             wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+        if (dialog.ShowModal() != wxID_CANCEL) {
+            if (wxFileInputStream file_stream (dialog.GetPath()); file_stream.IsOk()) {
+                auto size = file_stream.GetSize();
+                auto buffer = new unsigned char[size];
+                auto device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
+                if (device->connected()) {
+                    file_stream.ReadAll(buffer, size);
+                    device->upload_filter(buffer, size);
+                }
+            }
         }
     }
 

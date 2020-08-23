@@ -14,6 +14,7 @@
 
 #include "adc.hpp"
 #include "dac.hpp"
+#include "elf_load.hpp"
 #include "usbserial.hpp"
 
 #include <array>
@@ -29,6 +30,10 @@ static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 2048)> adc_samples;
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
 static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, 2048)> dac_samples;
+
+static uint8_t elf_file_store[2048];
+static uint8_t elf_exec_store[2048];
+static elf::entry_t elf_entry = nullptr;
 
 static volatile bool signal_operate_done = false;
 
@@ -73,7 +78,12 @@ int main()
                     adc::read_stop();
                     break;
                 case 'e':
-                    
+                    if (usbserial::read(&cmd[1], 2) < 2)
+                        break;
+                    if (unsigned int count = cmd[1] | (cmd[2] << 8); count < sizeof(elf_file_store)) {
+                        usbserial::read(elf_file_store, count);
+                        elf_entry = elf::load(elf_file_store, elf_exec_store);
+                    }
                     break;
                 case 'W':
                     if (usbserial::read(&cmd[1], 2) < 2)
@@ -103,6 +113,8 @@ int main()
 
 void signal_operate(adcsample_t *buffer, size_t count)
 {
+    if (elf_entry)
+        elf_entry(buffer, count);
     auto dac_buffer = &dac_samples[buffer == &adc_samples[0] ? 0 : 1024];
     std::copy(buffer, buffer + count, dac_buffer);
     signal_operate_done = buffer == &adc_samples[1024];
