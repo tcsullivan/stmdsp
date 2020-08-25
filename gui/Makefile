@@ -8,7 +8,7 @@ CXXFLAGS = --std=c++20 -ggdb -Og \
 CXXFILES = $(shell find serial/src -name "*.cc") $(wildcard *.cpp)
 OFILES = $(patsubst %.cc, %.o, $(patsubst %.cpp, %.o, $(CXXFILES)))
 
-LIBS = $(shell wx-config --libs)
+LIBS = $(shell wx-config --libs) -lwx_gtk3u_stc-3.1
 OUTELF = stmdspgui
 
 all: $(OUTELF)

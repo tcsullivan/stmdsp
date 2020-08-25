@@ -9,8 +9,10 @@
 #include <wx/combobox.h>
 #include <wx/dcclient.h>
 #include <wx/filedlg.h>
+#include <wx/font.h>
 #include <wx/frame.h>
 #include <wx/stattext.h>
+#include <wx/stc/stc.h>
 #include <wx/timer.h>
 #include <wx/wfstream.h>
 
@@ -28,18 +30,54 @@ class MainFrame : public wxFrame
     wxTimer *m_render_timer = nullptr;
     wxComboBox *m_device_combo = nullptr;
 
-    const wxRect m_clipping_region = {20, 100, 600, 360};
+    const wxRect m_clipping_region = {20, 500, 600, 360};
 
     stmdsp::device *m_device = nullptr;
     std::future<std::vector<stmdsp::adcsample_t>> m_device_samples_future;
     std::vector<stmdsp::adcsample_t> m_device_samples;
 
 public:
-    MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wxSize(640, 480))
+    MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wxSize(640, 880))
     {
         new wxStaticText(this, Id::Welcome, "Welcome to the GUI.", wxPoint(20, 20));
         new wxButton(this, Id::Single, "Single", wxPoint(20, 60));
         new wxButton(this, Id::UploadFilter, "Upload Filter", wxPoint(120, 60));
+        auto stc = new wxStyledTextCtrl(this, wxID_ANY, wxPoint(20, 100), wxSize(600, 400));
+
+        stc->SetLexer(wxSTC_LEX_CPP);
+        stc->SetMarginWidth(0, 30);
+        stc->SetMarginType(0, wxSTC_MARGIN_NUMBER);
+        wxFont::AddPrivateFont("./Hack-Regular.ttf");
+        stc->StyleSetFaceName(wxSTC_STYLE_DEFAULT, "Hack");
+        stc->StyleClearAll();
+        stc->SetTabWidth(4);
+        stc->StyleSetForeground(wxSTC_STYLE_LINENUMBER, wxColor(75, 75, 75));
+        stc->StyleSetBackground(wxSTC_STYLE_LINENUMBER, wxColor(220, 220, 220));
+
+        stc->StyleSetForeground (wxSTC_C_STRING,            wxColour(150,0,0));
+        stc->StyleSetForeground (wxSTC_C_PREPROCESSOR,      wxColour(165,105,0));
+        stc->StyleSetForeground (wxSTC_C_IDENTIFIER,        wxColour(40,0,60));
+        stc->StyleSetForeground (wxSTC_C_NUMBER,            wxColour(0,150,0));
+        stc->StyleSetForeground (wxSTC_C_CHARACTER,         wxColour(150,0,0));
+        stc->StyleSetForeground (wxSTC_C_WORD,              wxColour(0,0,150));
+        stc->StyleSetForeground (wxSTC_C_WORD2,             wxColour(0,150,0));
+        stc->StyleSetForeground (wxSTC_C_COMMENT,           wxColour(150,150,150));
+        stc->StyleSetForeground (wxSTC_C_COMMENTLINE,       wxColour(150,150,150));
+        stc->StyleSetForeground (wxSTC_C_COMMENTDOC,        wxColour(150,150,150));
+        stc->StyleSetForeground (wxSTC_C_COMMENTDOCKEYWORD, wxColour(0,0,200));
+        stc->StyleSetForeground (wxSTC_C_COMMENTDOCKEYWORDERROR, wxColour(0,0,200));
+        stc->StyleSetBold(wxSTC_C_WORD, true);
+        stc->StyleSetBold(wxSTC_C_WORD2, true);
+        stc->StyleSetBold(wxSTC_C_COMMENTDOCKEYWORD, true);
+ 
+        // a sample list of keywords, I haven't included them all to keep it short...
+        stc->SetKeyWords(0,
+            wxT("return for while do break continue if else goto"));
+        stc->SetKeyWords(1,
+            wxT("void char short int long float double unsigned signed "
+                "volatile static const constexpr constinit consteval "
+                "virtual final noexcept public private protected"));
+
         m_device_combo = new wxComboBox(this, Id::SelectDevice, "", wxPoint(470, 20), wxSize(150, 30));
         m_device_combo->SetEditable(false);
         stmdsp::scanner scanner;
