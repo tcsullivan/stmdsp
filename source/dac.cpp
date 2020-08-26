@@ -28,7 +28,7 @@ constexpr static const DACConversionGroup dac_group_config = {
 };
 
 constexpr static const GPTConfig gpt_config = {
-  .frequency = 1000000,
+  .frequency = 4000000,
   .callback = nullptr,
   .cr2 = TIM_CR2_MMS_1, /* TRGO */
   .dier = 0
@@ -48,7 +48,7 @@ namespace dac
     void write_start(dacsample_t *buffer, size_t count)
     {
         dacStartConversion(dacd, &dac_group_config, buffer, count);
-        gptStartContinuous(gptd, 100);
+        gptStartContinuous(gptd, 2);
     }
     
     void write_stop()

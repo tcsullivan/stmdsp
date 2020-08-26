@@ -100,7 +100,8 @@ public:
         auto button = dynamic_cast<wxButton *>(ce.GetEventObject());
 
         if (!m_render_timer->IsRunning()) {
-            m_device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
+            if (m_device == nullptr)
+                m_device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
             if (m_device->connected()) {
                 m_device->continuous_start();
                 m_device_samples_future = std::async(std::launch::async,
@@ -116,8 +117,8 @@ public:
             m_device->continuous_stop();
             button->SetLabel("Single");
 
-            delete m_device;
-            m_device = nullptr;
+            //delete m_device;
+            //m_device = nullptr;
         }
     }
 
@@ -129,10 +130,11 @@ public:
             if (wxFileInputStream file_stream (/*dialog.GetPath()*/file); file_stream.IsOk()) {
                 auto size = file_stream.GetSize();
                 auto buffer = new unsigned char[size];
-                auto device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
-                if (device->connected()) {
+                if (m_device == nullptr)
+                    m_device = new stmdsp::device(m_device_combo->GetStringSelection().ToStdString());
+                if (m_device->connected()) {
                     file_stream.ReadAll(buffer, size);
-                    device->upload_filter(buffer, size);
+                    m_device->upload_filter(buffer, size);
                 }
             }
         }
