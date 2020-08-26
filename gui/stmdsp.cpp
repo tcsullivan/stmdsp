@@ -16,7 +16,7 @@ namespace stmdsp
     }
 
     device::device(const std::string& file) :
-        m_serial(file, 230400, serial::Timeout::simpleTimeout(50))
+        m_serial(file, 1000000/*230400*/, serial::Timeout::simpleTimeout(50))
     {
         if (m_serial.isOpen()) {
            m_serial.write("i");
