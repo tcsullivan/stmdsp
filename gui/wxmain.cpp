@@ -181,18 +181,13 @@ void MainFrame::prepareEditor()
 
 static const char *makefile_text = R"make(
 all:
-	@arm-none-eabi-g++ -x c++ -mcpu=cortex-m4 -mthumb -Os --specs=nosys.specs -nostartfiles -fPIE -c $0 -o $0.o
-	@arm-none-eabi-ld -shared -n -N -z max-page-size=512 -Ttext-segment=0 \
-	    $0.o -o $0.so
-	@arm-none-eabi-strip -s -S --strip-unneeded $0.so
-	@arm-none-eabi-objcopy --remove-section .dynsym \
-						   --remove-section .dynstr \
-						   --remove-section .dynamic \
-						   --remove-section .hash \
-						   --remove-section .ARM.exidx \
-						   --remove-section .ARM.attributes \
-						   --remove-section .comment \
-						   $0.so
+	@arm-none-eabi-g++ -x c++ -mcpu=cortex-m4 -mthumb -Os --specs=nosys.specs -nostartfiles -fPIE $0 -o $0.o -Wl,-Ttext-segment=0 -Wl,-eprocess_data_entry -Wl,-zmax-page-size=512
+	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
+	@arm-none-eabi-objcopy --remove-section .ARM.exidx \
+                           --remove-section .ARM.attributes \
+                           --remove-section .comment \
+                           --remove-section .noinit \
+                           $0.o
 )make";
 
 static const char *file_header = R"cpp(
@@ -200,10 +195,21 @@ static const char *file_header = R"cpp(
 
 using adcsample_t = uint16_t;
 
-__attribute__((section(".process_data"))) void process_data(adcsample_t *samples, unsigned int size);
+static void process_data(adcsample_t *samples, unsigned int size);
+
+__attribute__((optimize("-O0")))
+static void *alloc(unsigned int count) {
+    void *result = nullptr;
+    asm("mov r0, %0; mov r1, %1; svc 0" :: "r" (&result), "r" (count));
+    return result;
+}
+
+extern "C" void process_data_entry() {
+    auto func = (void (*)())process_data;
+    func();
+}
 
 // End stmdspgui header code
-
 )cpp";
 
 wxString MainFrame::compileEditorCode()
@@ -223,7 +229,7 @@ wxString MainFrame::compileEditorCode()
     wxString make_command = wxString("make -C ") + file_name.BeforeLast('/') +
                             " -f " + file_name + "make";
     if (system(make_command.ToAscii()) == 0)
-        return file_name + ".so";
+        return file_name + ".o";
     else
         return "";
 }

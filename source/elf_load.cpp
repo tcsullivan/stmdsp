@@ -54,29 +54,25 @@ entry_t load(void *elf_data, void *elf_load_offset)
     //                  [elf_load_offset](auto func) { (func + elf_load_offset)(); });
     //}
 
-    // Find filter code start
-    if (auto filter = find_section(ehdr, ".process_data"); filter)
-        return ptr_from_offset<entry_t>(elf_load_offset, filter->sh_addr | 1); // OR 1 to enable thumb
-    else
-        return nullptr;
+    return ptr_from_offset<entry_t>(elf_load_offset, ehdr->e_entry);
 }
 
 } // namespace elf
 
 Elf32_Shdr *find_section(Elf32_Ehdr *ehdr, const char *name)
 {
-	auto shdr = ptr_from_offset<Elf32_Shdr *>(ehdr, ehdr->e_shoff);
-	auto shdr_str = ptr_from_offset<Elf32_Shdr *>(ehdr,
+    auto shdr = ptr_from_offset<Elf32_Shdr *>(ehdr, ehdr->e_shoff);
+    auto shdr_str = ptr_from_offset<Elf32_Shdr *>(ehdr,
         ehdr->e_shoff + ehdr->e_shstrndx * ehdr->e_shentsize);
 
-	for (Elf32_Half i = 0; i < ehdr->e_shnum; i++) {
-		char *section = ptr_from_offset<char *>(ehdr, shdr_str->sh_offset) + shdr->sh_name;
-		if (!strcmp(section, name))
-			return shdr;
+    for (Elf32_Half i = 0; i < ehdr->e_shnum; i++) {
+        char *section = ptr_from_offset<char *>(ehdr, shdr_str->sh_offset) + shdr->sh_name;
+        if (!strcmp(section, name))
+            return shdr;
 
-		shdr = ptr_from_offset<Elf32_Shdr *>(shdr, ehdr->e_shentsize);
-	}
+        shdr = ptr_from_offset<Elf32_Shdr *>(shdr, ehdr->e_shentsize);
+    }
 
-	return 0;
+    return 0;
 }
 

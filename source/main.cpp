@@ -111,12 +111,52 @@ int main()
 	}
 }
 
+void quick_freeall();
+
 void signal_operate(adcsample_t *buffer, size_t count)
 {
-    if (elf_entry)
+    if (elf_entry) {
         elf_entry(buffer, count);
+        quick_freeall();
+    }
+
     auto dac_buffer = &dac_samples[buffer == &adc_samples[0] ? 0 : 1024];
     std::copy(buffer, buffer + count, dac_buffer);
     signal_operate_done = buffer == &adc_samples[1024];
+}
+
+// Dynamic memory allocation below
+
+uint8_t quick_malloc_heap[8192];
+uint8_t *quick_malloc_next = quick_malloc_heap;
+
+void *quick_malloc(unsigned int size)
+{
+    if (auto free = std::distance(quick_malloc_next, quick_malloc_heap + 8192); free < 0 || size > static_cast<unsigned int>(free))
+        return nullptr;
+
+    auto ptr = quick_malloc_next;
+    quick_malloc_next += size;
+    return ptr;
+}
+
+void quick_freeall()
+{
+    if (quick_malloc_next != quick_malloc_heap)
+        quick_malloc_next = quick_malloc_heap;
+}
+
+void port_syscall(struct port_extctx *ctxp, uint32_t n)
+{
+    switch (n) {
+    case 0:
+        *reinterpret_cast<void **>(ctxp->r0) = quick_malloc(ctxp->r1);
+        break;
+    case 1:
+        quick_freeall();
+        break;
+    }
+
+    chSysHalt("svc");
 }
 

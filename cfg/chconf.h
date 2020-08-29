@@ -751,6 +751,9 @@
 /* Port-specific settings (override port settings defaulted in chcore.h).    */
 /*===========================================================================*/
 
+// Enable syscall support
+#define PORT_USE_SYSCALL                    TRUE
+
 #endif  /* CHCONF_H */
 
 /** @} */
