@@ -160,3 +160,28 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
     chSysHalt("svc");
 }
 
+void conversion_abort()
+{
+    elf_entry = nullptr;
+    dac::write_stop();
+    adc::read_stop();
+    signal_operate_done = true;
+}
+
+extern "C" {
+
+__attribute__((naked))
+void HardFault_Handler()
+{
+    uint32_t *stack;
+    asm("mrs %0, msp" : "=r" (stack));
+    stack[6] = stack[5];
+    stack[7] |= (1 << 24);
+
+    asm("push {lr}");
+    conversion_abort();
+    asm("pop {lr}; bx lr");
+}
+
+} // extern "C"
+
