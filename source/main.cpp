@@ -19,6 +19,14 @@
 
 #include <array>
 
+enum class RunStatus : char
+{
+    Idle = '1',
+    Converting
+};
+static RunStatus run_status = RunStatus::Idle;
+
+
 static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
 static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 
@@ -65,6 +73,7 @@ int main()
                     }
                     break;
                 case 'R':
+                    run_status = RunStatus::Converting;
                     dac_samples.fill(0);
                     adc::read_start(signal_operate, &adc_samples[0], adc_samples.size());
                     dac::write_start(&dac_samples[0], dac_samples.size());
@@ -76,6 +85,7 @@ int main()
                 case 'S':
                     dac::write_stop();
                     adc::read_stop();
+                    run_status = RunStatus::Idle;
                     break;
                 case 'e':
                     if (usbserial::read(&cmd[1], 2) < 2)
@@ -100,6 +110,9 @@ int main()
                     break;
                 case 'i': // Identify ourself as an stmdsp device
                     usbserial::write("stmdsp", 6);
+                    break;
+                case 'I': // Info (i.e. run status)
+                    usbserial::write(&run_status, 1);
                     break;
                 default:
                     break;
@@ -166,6 +179,7 @@ void conversion_abort()
     dac::write_stop();
     adc::read_stop();
     signal_operate_done = true;
+    run_status = RunStatus::Idle;
 }
 
 extern "C" {
@@ -173,13 +187,17 @@ extern "C" {
 __attribute__((naked))
 void HardFault_Handler()
 {
-    uint32_t *stack;
-    asm("mrs %0, msp" : "=r" (stack));
-    stack[6] = stack[5];
-    stack[7] |= (1 << 24);
-
     asm("push {lr}");
-    conversion_abort();
+
+    if (run_status == RunStatus::Converting) {
+        uint32_t *stack;
+        asm("mrs %0, msp" : "=r" (stack));
+        stack[6] = stack[5];   // Escape from elf_entry code
+        stack[7] |= (1 << 24); // Keep Thumb mode enabled
+
+        conversion_abort();
+    }
+
     asm("pop {lr}; bx lr");
 }
 
