@@ -20,7 +20,7 @@ constexpr static const ADCConfig adc_config = {
 
 static void adc_read_callback(ADCDriver *);
 
-/*constexpr*/ static ADCConversionGroup adc_group_config = {
+static ADCConversionGroup adc_group_config = {
     .circular = false,
     .num_channels = 1,
     .end_cb = adc_read_callback,
@@ -29,7 +29,7 @@ static void adc_read_callback(ADCDriver *);
     .cfgr2 = 0,
     .tr1 = ADC_TR(0, 4095),
     .smpr = {
-        ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5), 0
+        ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5), 0
     },
     .sqr = {
         ADC_SQR1_SQ1_N(ADC_CHANNEL_IN5),
@@ -65,7 +65,7 @@ namespace adc
         adc_is_read_finished = false;
         adc_group_config.circular = false;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 2);
+        gptStartContinuous(gptd, 8);
         while (!adc_is_read_finished);
         return buffer;
     }
@@ -77,12 +77,13 @@ namespace adc
         adc_operation_func = operation_func;
         adc_group_config.circular = true;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 2);
+        gptStartContinuous(gptd, 8);
     }
     
     void read_stop()
     {
         gptStopTimer(gptd);
+        adcStopConversion(adcd);
         adc_group_config.circular = false;
         adc_current_buffer = nullptr;
         adc_current_buffer_size = 0;
@@ -126,15 +127,17 @@ namespace adc
 
 void adc_read_callback(ADCDriver *driver)
 {
-    if (!adc_group_config.circular) {
+    if (adc_group_config.circular) {
+        if (adc_operation_func != nullptr) {
+            auto half_size = adc_current_buffer_size / 2;
+            if (adcIsBufferComplete(driver))
+                adc_operation_func(adc_current_buffer + half_size, half_size);
+            else
+                adc_operation_func(adc_current_buffer, half_size);
+        }
+    } else {
         gptStopTimer(gptd);
         adc_is_read_finished = true;
-    } else if (adc_operation_func != nullptr) {
-        auto half_size = adc_current_buffer_size / 2;
-        if (adcIsBufferComplete(driver))
-            adc_operation_func(adc_current_buffer + half_size, half_size);
-        else
-            adc_operation_func(adc_current_buffer, half_size);
     }
 }
 

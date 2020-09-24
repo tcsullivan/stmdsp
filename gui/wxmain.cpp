@@ -181,7 +181,8 @@ void MainFrame::prepareEditor()
 
 static const char *makefile_text = R"make(
 all:
-	@arm-none-eabi-g++ -x c++ -mcpu=cortex-m4 -mthumb -Os --specs=nosys.specs -nostartfiles -fPIE $0 -o $0.o -Wl,-Ttext-segment=0 -Wl,-eprocess_data_entry -Wl,-zmax-page-size=512
+	@arm-none-eabi-g++ -x c++ -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -Os --specs=nosys.specs -nostartfiles -fPIE $0 -o $0.o -Wl,-Ttext-segment=0 -Wl,-eprocess_data_entry -Wl,-zmax-page-size=512
+	@cp $0.o $0.orig.o
 	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
 	@arm-none-eabi-objcopy --remove-section .ARM.exidx \
                            --remove-section .ARM.attributes \
@@ -195,14 +196,7 @@ static const char *file_header = R"cpp(
 
 using adcsample_t = uint16_t;
 
-static void process_data(adcsample_t *samples, unsigned int size);
-
-__attribute__((optimize("-O0")))
-static void *alloc(unsigned int count) {
-    void *result = nullptr;
-    asm("mov r0, %0; mov r1, %1; svc 0" :: "r" (&result), "r" (count));
-    return result;
-}
+void process_data(adcsample_t *samples, unsigned int size);
 
 extern "C" void process_data_entry() {
     auto func = (void (*)())process_data;

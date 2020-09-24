@@ -22,10 +22,19 @@
 enum class RunStatus : char
 {
     Idle = '1',
-    Converting
+    Converting,
+    Recovered
 };
 static RunStatus run_status = RunStatus::Idle;
 
+#define MSG_CONVFIRST  (1)
+#define MSG_CONVSECOND (2)
+
+static msg_t conversionMBBuffer[8];
+static MAILBOX_DECL(conversionMB, conversionMBBuffer, 8);
+
+static THD_WORKING_AREA(conversionThreadWA, 1024);
+static THD_FUNCTION(conversionThread, arg);
 
 static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
 static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
@@ -40,17 +49,19 @@ CC_ALIGN(CACHE_LINE_SIZE)
 static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, 2048)> dac_samples;
 
 static uint8_t elf_file_store[2048];
-static uint8_t elf_exec_store[2048];
+static uint8_t elf_exec_store[4096];
 static elf::entry_t elf_entry = nullptr;
 
-static volatile bool signal_operate_done = false;
-
 static void signal_operate(adcsample_t *buffer, size_t count);
+static void main_loop();
 
 int main()
 {
     halInit();
     chSysInit();
+
+    // Enable FPU
+    SCB->CPACR |= 0xF << 20;
 
     palSetPadMode(GPIOA, 5,  PAL_MODE_OUTPUT_PUSHPULL); // LED
 
@@ -58,6 +69,14 @@ int main()
     dac::init();
     usbserial::init();
 
+    chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
+                      NORMALPRIO,
+                      conversionThread, nullptr);
+    main_loop();
+}
+
+void main_loop()
+{
     static unsigned int dac_sample_count = 2048;
 	while (true) {
         if (usbserial::is_active()) {
@@ -79,7 +98,6 @@ int main()
                     dac::write_start(&dac_samples[0], dac_samples.size());
                     break;
                 case 's':
-                    while (!signal_operate_done);
                     usbserial::write(dac_samples.data(), dac_samples.size() * sizeof(adcsample_t));
                     break;
                 case 'S':
@@ -124,62 +142,42 @@ int main()
 	}
 }
 
-void quick_freeall();
-
-void signal_operate(adcsample_t *buffer, size_t count)
-{
-    if (elf_entry) {
-        elf_entry(buffer, count);
-        quick_freeall();
-    }
-
-    auto dac_buffer = &dac_samples[buffer == &adc_samples[0] ? 0 : 1024];
-    std::copy(buffer, buffer + count, dac_buffer);
-    signal_operate_done = buffer == &adc_samples[1024];
-}
-
-// Dynamic memory allocation below
-
-uint8_t quick_malloc_heap[8192];
-uint8_t *quick_malloc_next = quick_malloc_heap;
-
-void *quick_malloc(unsigned int size)
-{
-    if (auto free = std::distance(quick_malloc_next, quick_malloc_heap + 8192); free < 0 || size > static_cast<unsigned int>(free))
-        return nullptr;
-
-    auto ptr = quick_malloc_next;
-    quick_malloc_next += size;
-    return ptr;
-}
-
-void quick_freeall()
-{
-    if (quick_malloc_next != quick_malloc_heap)
-        quick_malloc_next = quick_malloc_heap;
-}
-
-void port_syscall(struct port_extctx *ctxp, uint32_t n)
-{
-    switch (n) {
-    case 0:
-        *reinterpret_cast<void **>(ctxp->r0) = quick_malloc(ctxp->r1);
-        break;
-    case 1:
-        quick_freeall();
-        break;
-    }
-
-    chSysHalt("svc");
-}
-
 void conversion_abort()
 {
     elf_entry = nullptr;
     dac::write_stop();
     adc::read_stop();
-    signal_operate_done = true;
-    run_status = RunStatus::Idle;
+    run_status = RunStatus::Recovered;
+}
+
+THD_FUNCTION(conversionThread, arg)
+{
+    (void)arg;
+
+    while (1) {
+        msg_t message;
+        if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK) {
+            auto samples = &adc_samples[0];
+            auto halfsize = adc_samples.size() / 2;
+            if (message == MSG_CONVFIRST) {
+                if (elf_entry)
+                    elf_entry(samples, halfsize);
+                std::copy(samples, samples + halfsize, &dac_samples[0]);
+            } else if (message == MSG_CONVSECOND) {
+                if (elf_entry)
+                    elf_entry(samples + halfsize, halfsize);
+                std::copy(samples + halfsize, samples + halfsize * 2, &dac_samples[1024]);
+            }
+        }
+    }
+}
+
+void signal_operate(adcsample_t *buffer, size_t count)
+{
+    if (chMBGetUsedCountI(&conversionMB) > 1)
+        conversion_abort();
+    else
+        chMBPostI(&conversionMB, buffer == &adc_samples[0] ? MSG_CONVFIRST : MSG_CONVSECOND);
 }
 
 extern "C" {
@@ -189,14 +187,18 @@ void HardFault_Handler()
 {
     asm("push {lr}");
 
-    if (run_status == RunStatus::Converting) {
-        uint32_t *stack;
-        asm("mrs %0, msp" : "=r" (stack));
-        stack[6] = stack[5];   // Escape from elf_entry code
-        stack[7] |= (1 << 24); // Keep Thumb mode enabled
+    uint32_t *stack;
+    asm("mrs %0, psp" : "=r" (stack));
+    //stack++;
+    stack[7] |= (1 << 24); // Keep Thumb mode enabled
 
-        conversion_abort();
-    }
+    conversion_abort();
+
+    //if (run_status == RunStatus::Converting) {
+    //    stack[6] = stack[5];   // Escape from elf_entry code
+    //} else /*if (run_status == RunStatus::Recovered)*/ {
+        stack[6] = (uint32_t)main_loop & ~1; // Return to safety
+    //}
 
     asm("pop {lr}; bx lr");
 }

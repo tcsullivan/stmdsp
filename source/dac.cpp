@@ -48,7 +48,7 @@ namespace dac
     void write_start(dacsample_t *buffer, size_t count)
     {
         dacStartConversion(dacd, &dac_group_config, buffer, count);
-        gptStartContinuous(gptd, 2);
+        gptStartContinuous(gptd, 8);
     }
     
     void write_stop()
