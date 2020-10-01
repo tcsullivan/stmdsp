@@ -19,6 +19,8 @@
 
 #include <array>
 
+constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 2048;
+
 enum class RunStatus : char
 {
     Idle = '1',
@@ -42,14 +44,13 @@ static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
-static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, 2048)> adc_samples;
+static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, MAX_SAMPLE_BUFFER_SIZE)> adc_samples;
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
-static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, 2048)> dac_samples;
+static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SAMPLE_BUFFER_SIZE)> dac_samples;
 
-static uint8_t elf_file_store[2048];
-static uint8_t elf_exec_store[4096];
+static uint8_t elf_file_store[8192];
 static elf::entry_t elf_entry = nullptr;
 
 static void signal_operate(adcsample_t *buffer, size_t count);
@@ -57,81 +58,125 @@ static void main_loop();
 
 int main()
 {
+    // Initialize the RTOS
     halInit();
     chSysInit();
 
     // Enable FPU
     SCB->CPACR |= 0xF << 20;
 
-    palSetPadMode(GPIOA, 5,  PAL_MODE_OUTPUT_PUSHPULL); // LED
+    // Prepare LED
+    palSetPadMode(GPIOA, 5,  PAL_MODE_OUTPUT_PUSHPULL);
+    palClearPad(GPIOA, 5);
 
     adc::init();
     dac::init();
     usbserial::init();
 
+    // Start the conversion manager thread
     chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
                       NORMALPRIO,
                       conversionThread, nullptr);
+
     main_loop();
 }
 
 void main_loop()
 {
-    static unsigned int dac_sample_count = 2048;
-	while (true) {
+    static unsigned int dac_sample_count = MAX_SAMPLE_BUFFER_SIZE;
+
+	while (1) {
         if (usbserial::is_active()) {
-            // Expect to receive a byte command 'packet'.
+            // Attempt to receive a command packet
             if (char cmd[3]; usbserial::read(&cmd, 1) > 0) {
+                // Packet received, first byte represents the desired command/action
                 switch (cmd[0]) {
-                case 'r': // Read in analog signal
-                    if (usbserial::read(&cmd[1], 2) < 2)
+
+                // 'r' - Conduct a single sample of the ADC, and send the results back over USB.
+                case 'r':
+                    // Get the next two bytes of the packet to determine the desired sample size
+                    if (run_status != RunStatus::Idle || usbserial::read(&cmd[1], 2) < 2)
                         break;
-                    if (auto count = std::min(static_cast<unsigned int>(cmd[1] | (cmd[2] << 8)), adc_samples.size()); count > 0) {
-                        adc::read(&adc_samples[0], count);
-                        usbserial::write(adc_samples.data(), count * sizeof(adcsample_t));
+                    if (unsigned int desiredSize = cmd[1] | (cmd[2] << 8); desiredSize <= adc_samples.size()) {
+                        adc::read(&adc_samples[0], desiredSize);
+                        usbserial::write(adc_samples.data(), desiredSize * sizeof(adcsample_t));
                     }
                     break;
+
+                // 'R' - Begin continuous sampling/conversion of the ADC. Samples will go through
+                //       the conversion code, and will be sent out over the DAC.
                 case 'R':
+                    //if (run_status != RunStatus::Idle)
+                    //    break;
+
                     run_status = RunStatus::Converting;
                     dac_samples.fill(0);
                     adc::read_start(signal_operate, &adc_samples[0], adc_samples.size());
                     dac::write_start(&dac_samples[0], dac_samples.size());
                     break;
+
+                // 's' - Sends the current contents of the DAC buffer back over USB.
                 case 's':
-                    usbserial::write(dac_samples.data(), dac_samples.size() * sizeof(adcsample_t));
+                    usbserial::write(dac_samples.data(), 1/*dac_samples.size()*/ * sizeof(dacsample_t));
                     break;
+
+                // 'S' - Stops the continuous sampling/conversion.
                 case 'S':
+                    //if (run_status != RunStatus::Converting)
+                    //    break;
+
                     dac::write_stop();
                     adc::read_stop();
                     run_status = RunStatus::Idle;
                     break;
+
+                // 'e' - Reads in and loads the compiled conversion code binary from USB.
                 case 'e':
+                    // Get the binary's size
                     if (usbserial::read(&cmd[1], 2) < 2)
                         break;
-                    if (unsigned int count = cmd[1] | (cmd[2] << 8); count < sizeof(elf_file_store)) {
-                        usbserial::read(elf_file_store, count);
-                        elf_entry = elf::load(elf_file_store, elf_exec_store);
+
+                    // Only load the binary if it can fit in the memory reserved for it.
+                    if (unsigned int binarySize = cmd[1] | (cmd[2] << 8); binarySize < sizeof(elf_file_store)) {
+                        usbserial::read(elf_file_store, binarySize);
+                        elf_entry = elf::load(elf_file_store);
                     }
                     break;
+
+                // 'W' - Sets the number of samples for DAC writing with command 'w'.
+                //       If the provided count is zero, DAC writing is stopped.
                 case 'W':
                     if (usbserial::read(&cmd[1], 2) < 2)
                         break;
-                    if (auto count = std::min(static_cast<unsigned int>(cmd[1] | (cmd[2] << 8)), dac_samples.size()); count > 0)
-                        dac_sample_count = count;
-                    else
-                        dac::write_stop();
+                    if (unsigned int sampleCount = cmd[1] | (cmd[2] << 8); sampleCount <= dac_samples.size()) {
+                        if (sampleCount > 0)
+                            dac_sample_count = sampleCount;
+                        else
+                            dac::write_stop();
+                    }
                     break;
+
+                // 'w' - Starts the DAC, looping over the given data (data size set by command 'W').
                 case 'w':
-                    if (usbserial::read(&dac_samples[0], 2 * dac_sample_count) != 2 * dac_sample_count)
+                    if (usbserial::read(&dac_samples[0], dac_sample_count * sizeof(dacsample_t) !=
+                        dac_sample_count * sizeof(dacsample_t)))
+                    {
                         break;
-                    dac::write_start(&dac_samples[0], dac_sample_count);
+                    } else {
+                        dac::write_start(&dac_samples[0], dac_sample_count);
+                    }
                     break;
-                case 'i': // Identify ourself as an stmdsp device
+
+                // 'i' - Sends an identifying string to confirm that this is the stmdsp device.
+                case 'i':
                     usbserial::write("stmdsp", 6);
                     break;
-                case 'I': // Info (i.e. run status)
-                    usbserial::write(&run_status, 1);
+
+                // 'I' - Sends the current run status.
+                case 'I':
+                    usbserial::write(&run_status, sizeof(run_status));
                     break;
+
                 default:
                     break;
                 }
@@ -157,22 +202,26 @@ THD_FUNCTION(conversionThread, arg)
     while (1) {
         msg_t message;
         if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK) {
-            auto samples = &adc_samples[0];
+            adcsample_t *samples = nullptr;
             auto halfsize = adc_samples.size() / 2;
             if (message == MSG_CONVFIRST) {
                 if (elf_entry)
-                    elf_entry(samples, halfsize);
+                    samples = elf_entry(&adc_samples[0], halfsize);
+                if (!samples)
+                    samples = &adc_samples[0];
                 std::copy(samples, samples + halfsize, &dac_samples[0]);
             } else if (message == MSG_CONVSECOND) {
                 if (elf_entry)
-                    elf_entry(samples + halfsize, halfsize);
-                std::copy(samples + halfsize, samples + halfsize * 2, &dac_samples[1024]);
+                    samples = elf_entry(&adc_samples[adc_samples.size() / 2], halfsize);
+                if (!samples)
+                    samples = &adc_samples[adc_samples.size() / 2];
+                std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
             }
         }
     }
 }
 
-void signal_operate(adcsample_t *buffer, size_t count)
+void signal_operate(adcsample_t *buffer, [[maybe_unused]] size_t count)
 {
     if (chMBGetUsedCountI(&conversionMB) > 1)
         conversion_abort();
@@ -185,22 +234,32 @@ extern "C" {
 __attribute__((naked))
 void HardFault_Handler()
 {
-    asm("push {lr}");
+    //asm("push {lr}");
 
     uint32_t *stack;
-    asm("mrs %0, psp" : "=r" (stack));
+    uint32_t lr;
+	asm("\
+		tst lr, #4; \
+		ite eq; \
+		mrseq %0, msp; \
+		mrsne %0, psp; \
+        mov %1, lr; \
+	" : "=r" (stack), "=r" (lr));
     //stack++;
     stack[7] |= (1 << 24); // Keep Thumb mode enabled
 
     conversion_abort();
 
+    // TODO test lr and decide how to recover
+
     //if (run_status == RunStatus::Converting) {
-    //    stack[6] = stack[5];   // Escape from elf_entry code
+        stack[6] = stack[5];   // Escape from elf_entry code
     //} else /*if (run_status == RunStatus::Recovered)*/ {
-        stack[6] = (uint32_t)main_loop & ~1; // Return to safety
+    //    stack[6] = (uint32_t)main_loop & ~1; // Return to safety
     //}
 
-    asm("pop {lr}; bx lr");
+    //asm("pop {lr}; bx lr");
+    asm("bx lr");
 }
 
 } // extern "C"

@@ -5,7 +5,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -Og -ggdb -fomit-frame-pointer -falign-functions=16
+  USE_OPT = -Og -ggdb -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
 endif
 
 # C specific options here (added to USE_OPT).
@@ -15,7 +15,7 @@ endif
 
 # C++ specific options here (added to USE_OPT).
 ifeq ($(USE_CPPOPT),)
-  USE_CPPOPT = -std=c++2a -fno-rtti -fno-exceptions
+  USE_CPPOPT = -std=c++2a -fno-rtti -fno-exceptions 
 endif
 
 # Enable this if you want the linker to remove unused code and data.

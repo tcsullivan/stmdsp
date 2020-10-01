@@ -176,16 +176,24 @@ void MainFrame::prepareEditor()
         wxT("void char short int long auto float double unsigned signed "
             "volatile static const constexpr constinit consteval "
             "virtual final noexcept public private protected"));
-    m_text_editor->SetText("void process_data(adcsample_t *samples, unsigned int size)\n{\n\t\n}\n");
+    m_text_editor->SetText(
+R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
+{
+    return samples;
+}
+)cpp");
 }
 
 static const char *makefile_text = R"make(
 all:
-	@arm-none-eabi-g++ -x c++ -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -Os --specs=nosys.specs -nostartfiles -fPIE $0 -o $0.o -Wl,-Ttext-segment=0 -Wl,-eprocess_data_entry -Wl,-zmax-page-size=512
+	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
+	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
+	                   -nostartfiles \
+	                   -Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
+	                   $0 -o $0.o
 	@cp $0.o $0.orig.o
 	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
-	@arm-none-eabi-objcopy --remove-section .ARM.exidx \
-                           --remove-section .ARM.attributes \
+	@arm-none-eabi-objcopy --remove-section .ARM.attributes \
                            --remove-section .comment \
                            --remove-section .noinit \
                            $0.o
@@ -196,14 +204,15 @@ static const char *file_header = R"cpp(
 
 using adcsample_t = uint16_t;
 
-void process_data(adcsample_t *samples, unsigned int size);
+adcsample_t *process_data(adcsample_t *samples, unsigned int size);
 
-extern "C" void process_data_entry() {
-    auto func = (void (*)())process_data;
-    func();
+extern "C" void process_data_entry()
+{
+    ((void (*)())process_data)();
 }
 
 // End stmdspgui header code
+
 )cpp";
 
 wxString MainFrame::compileEditorCode()

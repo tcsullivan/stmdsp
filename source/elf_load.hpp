@@ -6,9 +6,9 @@
 
 namespace elf
 {
-    using entry_t = void (*)(uint16_t *, size_t);
+    using entry_t = uint16_t *(*)(uint16_t *, size_t);
 
-    entry_t load(void *elf_data, void *elf_load_offset);
+    entry_t load(void *elf_data);
 }
 
 #endif // ELF_LOAD_HPP_
