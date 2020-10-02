@@ -3,6 +3,7 @@
 #include <wx/filename.h>
 #include <wx/filedlg.h>
 #include <wx/menu.h>
+#include <wx/msgdlg.h>
 #include <wx/sizer.h>
 
 enum Id {
@@ -15,30 +16,46 @@ enum Id {
     MFileOpen,
     MFileSave,
     MFileSaveAs,
+    MFileQuit,
     MRunConnect,
     MRunStart,
-    MRunStartMeasure,
+    MRunMeasure,
     MRunCompile,
-    MRunUpload
+    MRunUpload,
+    MRunUnload
 };
 
-MainFrame::MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wxSize(640, 800))
+MainFrame::MainFrame() : wxFrame(nullptr, -1, "stmdspgui", wxPoint(50, 50), wxSize(640, 800))
 {
     auto menubar = new wxMenuBar;
     auto menuFile = new wxMenu;
-    menuFile->Append(MFileNew, "&New");
-    menuFile->Append(MFileOpen, "&Open");
-    menuFile->Append(MFileSave, "&Save");
-    menuFile->Append(MFileSaveAs, "Save &As");
+    Bind(wxEVT_MENU, &MainFrame::onFileNew, this, Id::MFileNew, wxID_ANY,
+         menuFile->Append(MFileNew, "&New"));
+    Bind(wxEVT_MENU, &MainFrame::onFileOpen, this, Id::MFileOpen, wxID_ANY, menuFile->Append(MFileOpen, "&Open"));
+    Bind(wxEVT_MENU, &MainFrame::onFileSave, this, Id::MFileSave, wxID_ANY,
+         menuFile->Append(MFileSave, "&Save"));
+    Bind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs, wxID_ANY,
+         menuFile->Append(MFileSaveAs, "Save &As"));
+    menuFile->AppendSeparator();
+    Bind(wxEVT_MENU, &MainFrame::onFileQuit, this, Id::MFileQuit, wxID_ANY,
+         menuFile->Append(MFileQuit, "&Quit"));
+
     auto menuRun = new wxMenu;
-    menuRun->Append(MRunConnect, "&Connect");
+    Bind(wxEVT_MENU, &MainFrame::onRunConnect, this, Id::MRunConnect, wxID_ANY,
+         menuRun->Append(MRunConnect, "&Connect"));
     menuRun->AppendSeparator();
-    menuRun->Append(MRunStart, "&Start");
-    menuRun->Append(MRunStartMeasure, "Start with &Measure");
-    menuRun->Append(wxID_ANY, "Last time:")->Enable(false);
+    Bind(wxEVT_MENU, &MainFrame::onRunStart, this, Id::MRunStart, wxID_ANY,
+         menuRun->Append(MRunStart, "&Start"));
+    m_run_measure = menuRun->AppendCheckItem(MRunMeasure, "&Measure code speed");
+    m_run_measure_value = menuRun->Append(wxID_ANY, "Last time:");
+    m_run_measure_value->Enable(false);
     menuRun->AppendSeparator();
-    menuRun->Append(MRunCompile, "&Compile code");
-    menuRun->Append(MRunUpload, "&Upload code");
+    Bind(wxEVT_MENU, &MainFrame::onRunCompile, this, Id::MRunCompile, wxID_ANY,
+         menuRun->Append(MRunCompile, "&Compile code"));
+    Bind(wxEVT_MENU, &MainFrame::onRunUpload, this, Id::MRunUpload, wxID_ANY,
+         menuRun->Append(MRunUpload, "&Upload code"));
+    Bind(wxEVT_MENU, &MainFrame::onRunUnload, this, Id::MRunUnload, wxID_ANY,
+         menuRun->Append(MRunUnload, "U&nload code"));
 
     menubar->Append(menuFile, "&File");
     menubar->Append(menuRun, "&Run");
@@ -46,34 +63,19 @@ MainFrame::MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wx
 
     auto window = new wxBoxSizer(wxVERTICAL);
 
-    auto toolbar = new wxBoxSizer(wxHORIZONTAL);
-    toolbar->Add(new wxButton(this, Id::Single, "Run"), 0, wxALL, 10);
-    toolbar->Add(new wxButton(this, Id::UploadFilter, "Upload Filter"), 0, wxALL, 10);
-    toolbar->AddStretchSpacer(2);
-    toolbar->Add(new wxButton(this, Id::ConnectDevice, "Connect"), 0, wxALL, 10);
-    window->Add(toolbar, 0, wxALL | wxEXPAND);
-
-    m_text_editor = new wxStyledTextCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(600, 420));
+    m_text_editor = new wxStyledTextCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(620, 700));
     prepareEditor();
     window->Add(m_text_editor, 1, wxEXPAND | wxALL, 10);
 
-    m_signal_area = new wxControl(this, wxID_ANY, wxDefaultPosition, wxSize(600, 200));
-    window->Add(m_signal_area, 1, wxEXPAND | wxALL, 10);
+    //m_signal_area = new wxControl(this, wxID_ANY, wxDefaultPosition, wxSize(600, 200));
+    //window->Add(m_signal_area, 1, wxEXPAND | wxALL, 10);
 
     SetSizerAndFit(window);
 
-    m_render_timer = new wxTimer(this, Id::RenderTimer);
+    //m_render_timer = new wxTimer(this, Id::RenderTimer);
 
-    Bind(wxEVT_MENU, &MainFrame::onFileNew, this, Id::MFileNew);
-    Bind(wxEVT_MENU, &MainFrame::onFileOpen, this, Id::MFileOpen);
-    Bind(wxEVT_MENU, &MainFrame::onFileSave, this, Id::MFileSave);
-    Bind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs);
-
-    Bind(wxEVT_BUTTON, &MainFrame::onSinglePressed, this, Id::Single);
-    Bind(wxEVT_BUTTON, &MainFrame::onUploadPressed, this, Id::UploadFilter);
-    Bind(wxEVT_BUTTON, &MainFrame::onConnectPressed, this, Id::ConnectDevice);
-    Bind(wxEVT_PAINT, &MainFrame::onPaint, this, wxID_ANY);
-    Bind(wxEVT_TIMER, &MainFrame::onRenderTimer, this, Id::RenderTimer);
+    //Bind(wxEVT_PAINT, &MainFrame::onPaint, this, wxID_ANY);
+    //Bind(wxEVT_TIMER, &MainFrame::onRenderTimer, this, Id::RenderTimer);
 }
 
 void MainFrame::onPaint([[maybe_unused]] wxPaintEvent& pe)
@@ -82,8 +84,7 @@ void MainFrame::onPaint([[maybe_unused]] wxPaintEvent& pe)
     auto region = m_signal_area->GetRect();
     dc->SetClippingRegion(region);
 
-    dc->SetBrush(*wxBLACK_BRUSH);
-    dc->SetPen(*wxBLACK_PEN);
+    dc->SetBrush(*wxBLACK_BRUSH); dc->SetPen(*wxBLACK_PEN);
     dc->DrawRectangle(region);
 
     if (m_device_samples.size() > 0) {
@@ -103,77 +104,6 @@ void MainFrame::onPaint([[maybe_unused]] wxPaintEvent& pe)
     }
 }
 
-void MainFrame::onConnectPressed(wxCommandEvent& ce)
-{
-    auto button = dynamic_cast<wxButton *>(ce.GetEventObject());
-
-    if (m_device == nullptr) {
-        stmdsp::scanner scanner;
-        if (auto devices = scanner.scan(); devices.size() > 0) {
-            m_device = new stmdsp::device(devices.front());
-            if (m_device->connected()) {
-                button->SetLabel("Disconnect");
-            } else {
-                delete m_device;
-                m_device = nullptr;
-                button->SetLabel("Connect");
-            }
-        }
-    } else {
-        delete m_device;
-        m_device = nullptr;
-        button->SetLabel("Connect");
-    }
-}
-
-void MainFrame::doSingle()
-{
-    m_device_samples_future = std::async(std::launch::async,
-                                         [this]() { return m_device->continuous_read(); });
-}
-
-void MainFrame::onSinglePressed(wxCommandEvent& ce)
-{
-    auto button = dynamic_cast<wxButton *>(ce.GetEventObject());
-
-    if (!m_render_timer->IsRunning()) {
-        if (m_device != nullptr && m_device->connected()) {
-            m_device->continuous_start_measure();
-            m_device_samples_future = std::async(std::launch::async,
-                                                 []() { return decltype(m_device_samples)(); });
-            m_render_timer->Start(1000);
-            button->SetLabel("Stop");
-        }
-    } else {
-        m_render_timer->Stop();
-        m_device->continuous_stop();
-
-        //m_device_samples.clear();
-        //this->RefreshRect(m_signal_area->GetRect());
-
-        //button->SetLabel("Run");
-        button->SetLabel(wxString::Format(wxT("Run (%u)"),
-                         m_device->continuous_start_get_measurement()));
-    }
-}
-
-void MainFrame::onUploadPressed([[maybe_unused]] wxCommandEvent& ce)
-{
-    //wxFileDialog dialog (this, "Select filter to upload", "", "", "*.so",
-    //                     wxFD_OPEN | wxFD_FILE_MUST_EXIST);
-    //if (dialog.ShowModal() != wxID_CANCEL) {
-    if (auto file = compileEditorCode(); !file.IsEmpty()) {
-        if (wxFileInputStream file_stream (/*dialog.GetPath()*/file); file_stream.IsOk()) {
-            auto size = file_stream.GetSize();
-            auto buffer = new unsigned char[size];
-            if (m_device != nullptr && m_device->connected()) {
-                file_stream.ReadAll(buffer, size);
-                m_device->upload_filter(buffer, size);
-            }
-        }
-    }
-}
-
 void MainFrame::onRenderTimer([[maybe_unused]] wxTimerEvent& te)
 {
     updateDrawing();
@@ -184,7 +114,7 @@ void MainFrame::updateDrawing()
     if (m_device_samples = m_device_samples_future.get(); m_device_samples.size() > 0)
         this->RefreshRect(m_signal_area->GetRect());
 
-    doSingle();
+    requestSamples();
 }
 
 void MainFrame::prepareEditor()
@@ -290,6 +220,7 @@ R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
     return samples;
 }
 )cpp");
+    m_text_editor->DiscardEdits();
 }
 
 void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
@@ -305,6 +236,7 @@ void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
             if (file_stream.ReadAll(buffer, size)) {
                 m_open_file_path = openDialog.GetPath();
                 m_text_editor->SetText(buffer);
+                m_text_editor->DiscardEdits();
             }
             delete[] buffer;
         }
@@ -313,28 +245,126 @@ void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
 
 void MainFrame::onFileSave(wxCommandEvent& ce)
 {
-    if (m_open_file_path.IsEmpty()) {
-        onFileSaveAs(ce);
-    } else {
-        if (wxFile file (m_open_file_path, wxFile::write); file.IsOpened()) {
-            file.Write(m_text_editor->GetText());
-            file.Close();
+    if (m_text_editor->IsModified()) {
+        if (m_open_file_path.IsEmpty()) {
+            onFileSaveAs(ce);
+        } else {
+            if (wxFile file (m_open_file_path, wxFile::write); file.IsOpened()) {
+                file.Write(m_text_editor->GetText());
+                file.Close();
+                m_text_editor->DiscardEdits();
+            }
         }
     }
 }
 
 void MainFrame::onFileSaveAs([[maybe_unused]] wxCommandEvent& ce)
 {
-    wxFileDialog saveDialog(this, "Save filter file", "", "",
-                            "C++ source file (*.cpp)|*.cpp",
-                            wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (m_text_editor->IsModified()) {
+        wxFileDialog saveDialog(this, "Save filter file", "", "",
+                                "C++ source file (*.cpp)|*.cpp",
+                                wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 
-    if (saveDialog.ShowModal() != wxID_CANCEL) {
-        if (wxFile file (saveDialog.GetPath(), wxFile::write); file.IsOpened()) {
-            file.Write(m_text_editor->GetText());
-            file.Close();
-            m_open_file_path = saveDialog.GetPath();
+        if (saveDialog.ShowModal() != wxID_CANCEL) {
+            if (wxFile file (saveDialog.GetPath(), wxFile::write); file.IsOpened()) {
+                file.Write(m_text_editor->GetText());
+                file.Close();
+                m_text_editor->DiscardEdits();
+                m_open_file_path = saveDialog.GetPath();
+            }
         }
     }
+}
+
+void MainFrame::onFileQuit([[maybe_unused]] wxCommandEvent&)
+{
+    Close(true);
+}
+
+void MainFrame::onRunConnect(wxCommandEvent& ce)
+{
+    auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
+
+    if (m_device == nullptr) {
+        stmdsp::scanner scanner;
+        if (auto devices = scanner.scan(); devices.size() > 0) {
+            m_device = new stmdsp::device(devices.front());
+            if (m_device->connected()) {
+                menuItem->SetItemLabel("&Disconnect");
+            } else {
+                delete m_device;
+                m_device = nullptr;
+                menuItem->SetItemLabel("&Connect");
+            }
+        }
+    } else {
+        delete m_device;
+        m_device = nullptr;
+        menuItem->SetItemLabel("&Connect");
+    }
+}
+
+void MainFrame::onRunStart(wxCommandEvent& ce)
+{
+    auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
+
+    if (!m_render_timer->IsRunning()) {
+        if (m_device != nullptr && m_device->connected()) {
+            if (m_run_measure && m_run_measure->IsChecked())
+                m_device->continuous_start_measure();
+            else
+                m_device->continuous_start();
+
+            m_device_samples_future = std::async(std::launch::async,
+                                                 []() { return decltype(m_device_samples)(); });
+            m_render_timer->Start(1000);
+            menuItem->SetItemLabel("&Stop");
+        } else {
+            wxMessageBox("No device connected!", "Run", wxICON_WARNING);
+        }
+    } else {
+        m_render_timer->Stop();
+        m_device->continuous_stop();
+
+        menuItem->SetItemLabel("&Start");
+        if (m_run_measure && m_run_measure_value) {
+            m_run_measure_value->SetItemLabel(
+                m_run_measure->IsChecked() ? wxString::Format(wxT("Last time: %u"),m_device->continuous_start_get_measurement())
+                                           : "Last time: --");
+        }
+    }
+}
+
+void MainFrame::onRunCompile([[maybe_unused]] wxCommandEvent&)
+{
+    compileEditorCode();
+}
+
+void MainFrame::onRunUpload([[maybe_unused]] wxCommandEvent&)
+{
+    if (auto file = compileEditorCode(); !file.IsEmpty()) {
+        if (wxFileInputStream file_stream (file); file_stream.IsOk()) {
+            auto size = file_stream.GetSize();
+            auto buffer = new unsigned char[size];
+            if (m_device != nullptr && m_device->connected()) {
+                file_stream.ReadAll(buffer, size);
+                m_device->upload_filter(buffer, size);
+            } else {
+                wxMessageBox("No device connected!", "Run", wxICON_WARNING);
+            }
+        }
+    }
+}
+
+void MainFrame::onRunUnload([[maybe_unused]] wxCommandEvent&)
+{
+    if (m_device != nullptr && m_device->connected())
+        m_device->unload_filter();
+}
+
+void MainFrame::requestSamples()
+{
+    m_device_samples_future = std::async(std::launch::async,
+                                         [this]() { return m_device->continuous_read(); });
 }
 

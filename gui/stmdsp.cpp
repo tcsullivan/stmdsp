@@ -89,4 +89,9 @@ namespace stmdsp
             m_serial.write(buffer, size);
         }
     }
+
+    void device::unload_filter() {
+        if (connected())
+            m_serial.write("E");
+    }
 }

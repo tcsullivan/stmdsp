@@ -22,17 +22,21 @@ public:
     MainFrame();
     
     void onPaint(wxPaintEvent& pe);
-    void onSinglePressed(wxCommandEvent& ce);
-    void onConnectPressed(wxCommandEvent& ce);
-    void onUploadPressed(wxCommandEvent& ce);
     void onRenderTimer(wxTimerEvent& te);
 
     void onFileNew(wxCommandEvent&);
     void onFileOpen(wxCommandEvent&);
     void onFileSave(wxCommandEvent&);
     void onFileSaveAs(wxCommandEvent&);
+    void onFileQuit(wxCommandEvent&);
 
-    void doSingle();
+    void onRunConnect(wxCommandEvent&);
+    void onRunStart(wxCommandEvent&);
+    void onRunCompile(wxCommandEvent&);
+    void onRunUpload(wxCommandEvent&);
+    void onRunUnload(wxCommandEvent&);
+
+    void requestSamples();
     void updateDrawing();
 
 private:
@@ -41,6 +45,8 @@ private:
     wxComboBox *m_device_combo = nullptr;
     wxStyledTextCtrl *m_text_editor = nullptr;
     wxControl *m_signal_area = nullptr;
+    wxMenuItem *m_run_measure = nullptr;
+    wxMenuItem *m_run_measure_value = nullptr;
     wxString m_open_file_path;
 
     stmdsp::device *m_device = nullptr;

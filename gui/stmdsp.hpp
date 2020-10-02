@@ -47,6 +47,7 @@ namespace stmdsp
         void continuous_stop();
 
         void upload_filter(unsigned char *buffer, size_t size);
+        void unload_filter();
 
     private:
         serial::Serial m_serial;

@@ -164,6 +164,11 @@ void main_loop()
                     }
                     break;
 
+                // 'E' - Unloads the currently loaded conversion code
+                case 'E':
+                    elf_entry = nullptr;
+                    break;
+
                 // 'W' - Sets the number of samples for DAC writing with command 'w'.
                 //       If the provided count is zero, DAC writing is stopped.
                 case 'W':
