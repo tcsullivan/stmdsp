@@ -58,7 +58,7 @@ namespace stmdsp
             m_serial.read(reinterpret_cast<uint8_t *>(&count), sizeof(uint32_t));
         }
 
-        return count;
+        return count / 2;
     }
 
     std::vector<adcsample_t> device::continuous_read() {

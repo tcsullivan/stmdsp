@@ -1,14 +1,47 @@
 #include "wxmain.hpp"
 
 #include <wx/filename.h>
+#include <wx/filedlg.h>
 #include <wx/menu.h>
 #include <wx/sizer.h>
+
+enum Id {
+    Single = 1,
+    ConnectDevice,
+    UploadFilter,
+    RenderTimer,
+
+    MFileNew,
+    MFileOpen,
+    MFileSave,
+    MFileSaveAs,
+    MRunConnect,
+    MRunStart,
+    MRunStartMeasure,
+    MRunCompile,
+    MRunUpload
+};
 
 MainFrame::MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wxSize(640, 800))
 {
     auto menubar = new wxMenuBar;
     auto menuFile = new wxMenu;
+    menuFile->Append(MFileNew, "&New");
+    menuFile->Append(MFileOpen, "&Open");
+    menuFile->Append(MFileSave, "&Save");
+    menuFile->Append(MFileSaveAs, "Save &As");
+    auto menuRun = new wxMenu;
+    menuRun->Append(MRunConnect, "&Connect");
+    menuRun->AppendSeparator();
+    menuRun->Append(MRunStart, "&Start");
+    menuRun->Append(MRunStartMeasure, "Start with &Measure");
+    menuRun->Append(wxID_ANY, "Last time:")->Enable(false);
+    menuRun->AppendSeparator();
+    menuRun->Append(MRunCompile, "&Compile code");
+    menuRun->Append(MRunUpload, "&Upload code");
+
     menubar->Append(menuFile, "&File");
+    menubar->Append(menuRun, "&Run");
     SetMenuBar(menubar);
 
     auto window = new wxBoxSizer(wxVERTICAL);
@@ -30,6 +63,11 @@ MainFrame::MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wx
     SetSizerAndFit(window);
 
     m_render_timer = new wxTimer(this, Id::RenderTimer);
+
+    Bind(wxEVT_MENU, &MainFrame::onFileNew, this, Id::MFileNew);
+    Bind(wxEVT_MENU, &MainFrame::onFileOpen, this, Id::MFileOpen);
+    Bind(wxEVT_MENU, &MainFrame::onFileSave, this, Id::MFileSave);
+    Bind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs);
 
     Bind(wxEVT_BUTTON, &MainFrame::onSinglePressed, this, Id::Single);
     Bind(wxEVT_BUTTON, &MainFrame::onUploadPressed, this, Id::UploadFilter);
@@ -114,7 +152,8 @@ void MainFrame::onSinglePressed(wxCommandEvent& ce)
         //this->RefreshRect(m_signal_area->GetRect());
 
         //button->SetLabel("Run");
-        button->SetLabel(wxString::Format(wxT("%u"), m_device->continuous_start_get_measurement()));
+        button->SetLabel(wxString::Format(wxT("Run (%u)"),
+                         m_device->continuous_start_get_measurement()));
     }
 }
 
@@ -182,12 +221,8 @@ void MainFrame::prepareEditor()
         wxT("void char short int long auto float double unsigned signed "
             "volatile static const constexpr constinit consteval "
             "virtual final noexcept public private protected"));
-    m_text_editor->SetText(
-R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
-{
-    return samples;
-}
-)cpp");
+    wxCommandEvent dummy;
+    onFileNew(dummy);
 }
 
 static const char *makefile_text = R"make(
@@ -244,5 +279,62 @@ wxString MainFrame::compileEditorCode()
         return temp_file_name + ".o";
     else
         return "";
+}
+
+void MainFrame::onFileNew([[maybe_unused]] wxCommandEvent&)
+{
+    m_open_file_path = "";
+    m_text_editor->SetText(
+R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
+{
+    return samples;
+}
+)cpp");
+}
+
+void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
+{
+    wxFileDialog openDialog(this, "Open filter file", "", "",
+                            "C++ source file (*.cpp)|*.cpp",
+                            wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+    if (openDialog.ShowModal() != wxID_CANCEL) {
+        if (wxFileInputStream file_stream (openDialog.GetPath()); file_stream.IsOk()) {
+            auto size = file_stream.GetSize();
+            auto buffer = new char[size];
+            if (file_stream.ReadAll(buffer, size)) {
+                m_open_file_path = openDialog.GetPath();
+                m_text_editor->SetText(buffer);
+            }
+            delete[] buffer;
+        }
+    }
+}
+
+void MainFrame::onFileSave(wxCommandEvent& ce)
+{
+    if (m_open_file_path.IsEmpty()) {
+        onFileSaveAs(ce);
+    } else {
+        if (wxFile file (m_open_file_path, wxFile::write); file.IsOpened()) {
+            file.Write(m_text_editor->GetText());
+            file.Close();
+        }
+    }
+}
+
+void MainFrame::onFileSaveAs([[maybe_unused]] wxCommandEvent& ce)
+{
+    wxFileDialog saveDialog(this, "Save filter file", "", "",
+                            "C++ source file (*.cpp)|*.cpp",
+                            wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+
+    if (saveDialog.ShowModal() != wxID_CANCEL) {
+        if (wxFile file (saveDialog.GetPath(), wxFile::write); file.IsOpened()) {
+            file.Write(m_text_editor->GetText());
+            file.Close();
+            m_open_file_path = saveDialog.GetPath();
+        }
+    }
 }
 

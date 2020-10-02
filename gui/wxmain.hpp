@@ -18,27 +18,6 @@
 
 class MainFrame : public wxFrame
 {
-    enum Id {
-        Single = 1,
-        ConnectDevice,
-        UploadFilter,
-        RenderTimer
-    };
-
-    bool m_is_rendering = false;
-    wxTimer *m_render_timer = nullptr;
-    wxComboBox *m_device_combo = nullptr;
-    wxStyledTextCtrl *m_text_editor = nullptr;
-    wxControl *m_signal_area = nullptr;
-
-    stmdsp::device *m_device = nullptr;
-    std::future<std::vector<stmdsp::adcsample_t>> m_device_samples_future;
-    std::vector<stmdsp::adcsample_t> m_device_samples;
-
-    bool tryDevice();
-    void prepareEditor();
-    wxString compileEditorCode();
-
 public:
     MainFrame();
     
@@ -48,8 +27,29 @@ public:
     void onUploadPressed(wxCommandEvent& ce);
     void onRenderTimer(wxTimerEvent& te);
 
+    void onFileNew(wxCommandEvent&);
+    void onFileOpen(wxCommandEvent&);
+    void onFileSave(wxCommandEvent&);
+    void onFileSaveAs(wxCommandEvent&);
+
     void doSingle();
     void updateDrawing();
+
+private:
+    bool m_is_rendering = false;
+    wxTimer *m_render_timer = nullptr;
+    wxComboBox *m_device_combo = nullptr;
+    wxStyledTextCtrl *m_text_editor = nullptr;
+    wxControl *m_signal_area = nullptr;
+    wxString m_open_file_path;
+
+    stmdsp::device *m_device = nullptr;
+    std::future<std::vector<stmdsp::adcsample_t>> m_device_samples_future;
+    std::vector<stmdsp::adcsample_t> m_device_samples;
+
+    bool tryDevice();
+    void prepareEditor();
+    wxString compileEditorCode();
 };
 
 #endif // WXMAIN_HPP_
