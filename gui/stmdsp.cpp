@@ -46,6 +46,21 @@ namespace stmdsp
             m_serial.write("R");
     }
 
+    void device::continuous_start_measure() {
+        if (connected())
+            m_serial.write("M");
+    }
+
+    uint32_t device::continuous_start_get_measurement() {
+        uint32_t count = 0;
+        if (connected()) {
+            m_serial.write("m");
+            m_serial.read(reinterpret_cast<uint8_t *>(&count), sizeof(uint32_t));
+        }
+
+        return count;
+    }
+
     std::vector<adcsample_t> device::continuous_read() {
         if (connected()) {
             m_serial.write("s");

@@ -1,10 +1,15 @@
 #include "wxmain.hpp"
 
 #include <wx/filename.h>
+#include <wx/menu.h>
 #include <wx/sizer.h>
 
 MainFrame::MainFrame() : wxFrame(nullptr, -1, "Hello world", wxPoint(50, 50), wxSize(640, 800))
 {
+    auto menubar = new wxMenuBar;
+    auto menuFile = new wxMenu;
+    menubar->Append(menuFile, "&File");
+    SetMenuBar(menubar);
 
     auto window = new wxBoxSizer(wxVERTICAL);
 
@@ -95,7 +100,7 @@ void MainFrame::onSinglePressed(wxCommandEvent& ce)
 
     if (!m_render_timer->IsRunning()) {
         if (m_device != nullptr && m_device->connected()) {
-            m_device->continuous_start();
+            m_device->continuous_start_measure();
             m_device_samples_future = std::async(std::launch::async,
                                                  []() { return decltype(m_device_samples)(); });
             m_render_timer->Start(1000);
@@ -108,7 +113,8 @@ void MainFrame::onSinglePressed(wxCommandEvent& ce)
         //m_device_samples.clear();
         //this->RefreshRect(m_signal_area->GetRect());
 
-        button->SetLabel("Run");
+        //button->SetLabel("Run");
+        button->SetLabel(wxString::Format(wxT("%u"), m_device->continuous_start_get_measurement()));
     }
 }
 
@@ -199,7 +205,7 @@ all:
                            $0.o
 )make";
 
-static const char *file_header = R"cpp(
+static wxString file_header (R"cpp(
 #include <cstdint>
 
 using adcsample_t = uint16_t;
@@ -213,26 +219,29 @@ extern "C" void process_data_entry()
 
 // End stmdspgui header code
 
-)cpp";
+)cpp");
 
 wxString MainFrame::compileEditorCode()
 {
-    auto file_text = wxString(file_header) + m_text_editor->GetText();
-    auto file_name = wxFileName::CreateTempFileName("stmdspgui");
-    wxFile file (file_name, wxFile::write);
-    file.Write(file_text);
+    static wxString temp_file_name;
+
+    if (temp_file_name.IsEmpty())
+        temp_file_name = wxFileName::CreateTempFileName("stmdspgui");
+
+    wxFile file (temp_file_name, wxFile::write);
+    file.Write(file_header + m_text_editor->GetText());
     file.Close();
 
-    wxFile makefile (file_name + "make", wxFile::write);
+    wxFile makefile (temp_file_name + "make", wxFile::write);
     wxString make_text (makefile_text);
-    make_text.Replace("$0", file_name);
+    make_text.Replace("$0", temp_file_name);
     makefile.Write(make_text);
     makefile.Close();
 
-    wxString make_command = wxString("make -C ") + file_name.BeforeLast('/') +
-                            " -f " + file_name + "make";
+    wxString make_command = wxString("make -C ") + temp_file_name.BeforeLast('/') +
+                            " -f " + temp_file_name + "make";
     if (system(make_command.ToAscii()) == 0)
-        return file_name + ".o";
+        return temp_file_name + ".o";
     else
         return "";
 }

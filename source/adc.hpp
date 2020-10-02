@@ -32,6 +32,7 @@ namespace adc
     void init();
     adcsample_t *read(adcsample_t *buffer, size_t count);
     void read_start(operation_t operation_func, adcsample_t *buffer, size_t count);
+    void read_set_operation_func(operation_t operation_func);
     void read_stop();
     void set_rate(rate r);
 }

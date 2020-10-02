@@ -41,6 +41,8 @@ namespace stmdsp
         std::vector<adcsample_t> sample(unsigned long int count = 1);
 
         void continuous_start();
+        void continuous_start_measure();
+        uint32_t continuous_start_get_measurement();
         std::vector<adcsample_t> continuous_read();
         void continuous_stop();
 

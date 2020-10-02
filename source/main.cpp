@@ -29,14 +29,18 @@ enum class RunStatus : char
 };
 static RunStatus run_status = RunStatus::Idle;
 
-#define MSG_CONVFIRST  (1)
-#define MSG_CONVSECOND (2)
+#define MSG_CONVFIRST          (1)
+#define MSG_CONVSECOND         (2)
+#define MSG_CONVFIRST_MEASURE  (3)
+#define MSG_CONVSECOND_MEASURE (4)
 
 static msg_t conversionMBBuffer[8];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 8);
 
 static THD_WORKING_AREA(conversionThreadWA, 1024);
 static THD_FUNCTION(conversionThread, arg);
+
+static time_measurement_t conversion_time_measurement;
 
 static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
 static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
@@ -54,6 +58,7 @@ static uint8_t elf_file_store[8192];
 static elf::entry_t elf_entry = nullptr;
 
 static void signal_operate(adcsample_t *buffer, size_t count);
+static void signal_operate_measure(adcsample_t *buffer, size_t count);
 static void main_loop();
 
 int main()
@@ -74,6 +79,7 @@ int main()
     usbserial::init();
 
     // Start the conversion manager thread
+    chTMObjectInit(&conversion_time_measurement);
     chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
                       NORMALPRIO,
                       conversionThread, nullptr);
@@ -113,6 +119,21 @@ void main_loop()
                     dac_samples.fill(0);
                     adc::read_start(signal_operate, &adc_samples[0], adc_samples.size());
                     dac::write_start(&dac_samples[0], dac_samples.size());
+                    break;
+
+                // 'M' - Begins continuous sampling, but measures the execution time of the first
+                //       sample processing. This duration can be later read through 'm'.
+                case 'M':
+                    run_status = RunStatus::Converting;
+                    dac_samples.fill(0);
+                    adc::read_start(signal_operate_measure, &adc_samples[0], adc_samples.size());
+                    dac::write_start(&dac_samples[0], dac_samples.size());
+                    break;
+
+                // 'm' - Returns the last measured sample processing time, presumably in processor
+                //       ticks.
+                case 'm':
+                    usbserial::write(&conversion_time_measurement.last, sizeof(rtcnt_t));
                     break;
 
                 // 's' - Sends the current contents of the DAC buffer back over USB.
@@ -216,6 +237,22 @@ THD_FUNCTION(conversionThread, arg)
                 if (!samples)
                     samples = &adc_samples[adc_samples.size() / 2];
                 std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
+            } else if (message == MSG_CONVFIRST_MEASURE) {
+                chTMStartMeasurementX(&conversion_time_measurement);
+                if (elf_entry)
+                    samples = elf_entry(&adc_samples[adc_samples.size() / 2], halfsize);
+                chTMStopMeasurementX(&conversion_time_measurement);
+                if (!samples)
+                    samples = &adc_samples[adc_samples.size() / 2];
+                std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
+            } else if (message == MSG_CONVSECOND_MEASURE) {
+                chTMStartMeasurementX(&conversion_time_measurement);
+                if (elf_entry)
+                    samples = elf_entry(&adc_samples[adc_samples.size() / 2], halfsize);
+                chTMStopMeasurementX(&conversion_time_measurement);
+                if (!samples)
+                    samples = &adc_samples[adc_samples.size() / 2];
+                std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
             }
         }
     }
@@ -227,6 +264,12 @@ void signal_operate(adcsample_t *buffer, [[maybe_unused]] size_t count)
         conversion_abort();
     else
         chMBPostI(&conversionMB, buffer == &adc_samples[0] ? MSG_CONVFIRST : MSG_CONVSECOND);
+}
+
+void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
+{
+    chMBPostI(&conversionMB, buffer == &adc_samples[0] ? MSG_CONVFIRST_MEASURE : MSG_CONVSECOND_MEASURE);
+    adc::read_set_operation_func(signal_operate);
 }
 
 extern "C" {

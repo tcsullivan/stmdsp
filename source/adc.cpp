@@ -79,6 +79,11 @@ namespace adc
         adcStartConversion(adcd, &adc_group_config, buffer, count);
         gptStartContinuous(gptd, 5);
     }
+
+    void read_set_operation_func(operation_t operation_func)
+    {
+        adc_operation_func = operation_func;
+    }
     
     void read_stop()
     {
