@@ -28,7 +28,7 @@ constexpr static const DACConversionGroup dac_group_config = {
 };
 
 constexpr static const GPTConfig gpt_config = {
-  .frequency = 600000,
+  .frequency = 440000,
   .callback = nullptr,
   .cr2 = TIM_CR2_MMS_1, /* TRGO */
   .dier = 0

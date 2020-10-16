@@ -63,10 +63,10 @@
 #define STM32_MCOSEL                        STM32_MCOSEL_NOCLOCK
 #define STM32_MCOPRE                        STM32_MCOPRE_DIV1
 #define STM32_LSCOSEL                       STM32_LSCOSEL_NOCLOCK
-#define STM32_PLLSAI1N_VALUE                72
+#define STM32_PLLSAI1N_VALUE                44
 #define STM32_PLLSAI1P_VALUE                7
 #define STM32_PLLSAI1Q_VALUE                6
-#define STM32_PLLSAI1R_VALUE                6
+#define STM32_PLLSAI1R_VALUE                8
 #define STM32_PLLSAI2N_VALUE                72
 #define STM32_PLLSAI2P_VALUE                7
 #define STM32_PLLSAI2R_VALUE                6
@@ -88,7 +88,7 @@
 #define STM32_SAI1SEL                       STM32_SAI1SEL_OFF
 #define STM32_SAI2SEL                       STM32_SAI2SEL_OFF
 #define STM32_CLK48SEL                      STM32_CLK48SEL_MSI
-#define STM32_ADCSEL                        STM32_ADCSEL_SYSCLK
+#define STM32_ADCSEL                        STM32_ADCSEL_PLLSAI1
 #define STM32_SWPMI1SEL                     STM32_SWPMI1SEL_PCLK1
 #define STM32_DFSDMSEL                      STM32_DFSDMSEL_PCLK2
 #define STM32_RTCSEL                        STM32_RTCSEL_LSI
@@ -148,8 +148,10 @@
 #define STM32_ADC_ADC1_DMA_IRQ_PRIORITY     5
 #define STM32_ADC_ADC2_DMA_IRQ_PRIORITY     5
 #define STM32_ADC_ADC3_DMA_IRQ_PRIORITY     5
-#define STM32_ADC_ADC123_CLOCK_MODE         ADC_CCR_CKMODE_AHB_DIV1
-#define STM32_ADC_ADC123_PRESC              ADC_CCR_PRESC_DIV2
+#define STM32_ADC_ADC123_CLOCK_MODE         ADC_CCR_CKMODE_ADCCK
+#define STM32_ADC_ADC123_PRESC              ADC_CCR_PRESC_DIV10
+
+//#define ADC123_PRESC_VALUE 1
 
 /*
  * CAN driver system settings.

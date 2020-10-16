@@ -19,7 +19,7 @@
 
 #include <array>
 
-constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 2048;
+constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 8000;//2048;
 
 enum class RunStatus : char
 {
@@ -54,7 +54,7 @@ CC_ALIGN(CACHE_LINE_SIZE)
 #endif
 static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SAMPLE_BUFFER_SIZE)> dac_samples;
 
-static uint8_t elf_file_store[8192];
+static uint8_t elf_file_store[12288];
 static elf::entry_t elf_entry = nullptr;
 
 static void signal_operate(adcsample_t *buffer, size_t count);
@@ -161,6 +161,8 @@ void main_loop()
                     if (unsigned int binarySize = cmd[1] | (cmd[2] << 8); binarySize < sizeof(elf_file_store)) {
                         usbserial::read(elf_file_store, binarySize);
                         elf_entry = elf::load(elf_file_store);
+                    } else {
+                        elf_entry = nullptr;
                     }
                     break;
 

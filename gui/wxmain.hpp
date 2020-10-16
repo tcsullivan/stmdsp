@@ -20,9 +20,6 @@ class MainFrame : public wxFrame
 {
 public:
     MainFrame();
-    
-    void onPaint(wxPaintEvent& pe);
-    void onRenderTimer(wxTimerEvent& te);
 
     void onFileNew(wxCommandEvent&);
     void onFileOpen(wxCommandEvent&);
@@ -36,22 +33,19 @@ public:
     void onRunUpload(wxCommandEvent&);
     void onRunUnload(wxCommandEvent&);
 
-    void requestSamples();
-    void updateDrawing();
+    void onMeasureTimer(wxTimerEvent& te);
 
 private:
-    bool m_is_rendering = false;
-    wxTimer *m_render_timer = nullptr;
+    bool m_is_running = false;
     wxComboBox *m_device_combo = nullptr;
     wxStyledTextCtrl *m_text_editor = nullptr;
     wxControl *m_signal_area = nullptr;
     wxMenuItem *m_run_measure = nullptr;
-    wxMenuItem *m_run_measure_value = nullptr;
+    wxTimer *m_measure_timer = nullptr;
+    wxStatusBar *m_status_bar = nullptr;
     wxString m_open_file_path;
 
     stmdsp::device *m_device = nullptr;
-    std::future<std::vector<stmdsp::adcsample_t>> m_device_samples_future;
-    std::vector<stmdsp::adcsample_t> m_device_samples;
 
     bool tryDevice();
     void prepareEditor();
