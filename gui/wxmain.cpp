@@ -138,6 +138,7 @@ static wxString file_header (R"cpp(
 #include <cstdint>
 
 using adcsample_t = uint16_t;
+constexpr unsigned int SIZE = 4000;
 
 adcsample_t *process_data(adcsample_t *samples, unsigned int size);
 

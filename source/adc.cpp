@@ -38,7 +38,7 @@ static ADCConversionGroup adc_group_config = {
 };
 
 constexpr static const GPTConfig gpt_config = {
-    .frequency = 8000000,
+    .frequency = 2400000,
     .callback = nullptr,
     .cr2 = TIM_CR2_MMS_1, /* TRGO */
     .dier = 0
@@ -65,7 +65,7 @@ namespace adc
         adc_is_read_finished = false;
         adc_group_config.circular = false;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 2);
+        gptStartContinuous(gptd, 25);
         while (!adc_is_read_finished);
         return buffer;
     }
@@ -77,7 +77,7 @@ namespace adc
         adc_operation_func = operation_func;
         adc_group_config.circular = true;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 2);
+        gptStartContinuous(gptd, 25);
     }
 
     void read_set_operation_func(operation_t operation_func)
@@ -113,7 +113,7 @@ namespace adc
             val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5);
             break;
         case rate::R47P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);////
+            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);
             break;
         case rate::R92P5:
             val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_92P5);

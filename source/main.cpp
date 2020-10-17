@@ -19,7 +19,7 @@
 
 #include <array>
 
-constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 8000;//2048;
+constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 8000;
 
 enum class RunStatus : char
 {
@@ -240,25 +240,25 @@ THD_FUNCTION(conversionThread, arg)
                 std::copy(samples, samples + halfsize, &dac_samples[0]);
             } else if (message == MSG_CONVSECOND) {
                 if (elf_entry)
-                    samples = elf_entry(&adc_samples[adc_samples.size() / 2], halfsize);
+                    samples = elf_entry(&adc_samples[halfsize], halfsize);
                 if (!samples)
-                    samples = &adc_samples[adc_samples.size() / 2];
+                    samples = &adc_samples[halfsize];
                 std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
             } else if (message == MSG_CONVFIRST_MEASURE) {
                 chTMStartMeasurementX(&conversion_time_measurement);
                 if (elf_entry)
-                    samples = elf_entry(&adc_samples[adc_samples.size() / 2], halfsize);
+                    samples = elf_entry(&adc_samples[0], halfsize);
                 chTMStopMeasurementX(&conversion_time_measurement);
                 if (!samples)
-                    samples = &adc_samples[adc_samples.size() / 2];
-                std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
+                    samples = &adc_samples[0];
+                std::copy(samples, samples + halfsize, &dac_samples[0]);
             } else if (message == MSG_CONVSECOND_MEASURE) {
                 chTMStartMeasurementX(&conversion_time_measurement);
                 if (elf_entry)
-                    samples = elf_entry(&adc_samples[adc_samples.size() / 2], halfsize);
+                    samples = elf_entry(&adc_samples[halfsize], halfsize);
                 chTMStopMeasurementX(&conversion_time_measurement);
                 if (!samples)
-                    samples = &adc_samples[adc_samples.size() / 2];
+                    samples = &adc_samples[halfsize];
                 std::copy(samples, samples + halfsize, &dac_samples[dac_samples.size() / 2]);
             }
         }
