@@ -3,7 +3,9 @@
 
 #include "stmdsp.hpp"
 
+#include <fstream>
 #include <future>
+#include <iostream>
 #include <thread>
 #include <wx/button.h>
 #include <wx/combobox.h>
@@ -39,6 +41,7 @@ private:
     bool m_is_running = false;
     wxComboBox *m_device_combo = nullptr;
     wxStyledTextCtrl *m_text_editor = nullptr;
+    wxTextCtrl *m_compile_output = nullptr;
     wxControl *m_signal_area = nullptr;
     wxMenuItem *m_run_measure = nullptr;
     wxTimer *m_measure_timer = nullptr;

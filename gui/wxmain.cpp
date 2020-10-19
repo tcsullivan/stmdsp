@@ -63,9 +63,13 @@ MainFrame::MainFrame() : wxFrame(nullptr, -1, "stmdspgui", wxPoint(50, 50), wxSi
 
     auto window = new wxBoxSizer(wxVERTICAL);
 
-    m_text_editor = new wxStyledTextCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(620, 700));
+    m_text_editor = new wxStyledTextCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(620, 500));
     prepareEditor();
-    window->Add(m_text_editor, 1, wxEXPAND | wxALL, 10);
+    window->Add(m_text_editor, 2, wxEXPAND | wxALL, 10);
+
+    m_compile_output = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
+                                      wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL);
+    window->Add(m_compile_output, 1, wxEXPAND | wxALL, 10);
 
     SetSizerAndFit(window);
 
@@ -168,9 +172,15 @@ wxString MainFrame::compileEditorCode()
     makefile.Write(make_text);
     makefile.Close();
 
+    wxString make_output = temp_file_name + "make.log";
     wxString make_command = wxString("make -C ") + temp_file_name.BeforeLast('/') +
-                            " -f " + temp_file_name + "make";
-    if (system(make_command.ToAscii()) == 0) {
+                            " -f " + temp_file_name + "make" +
+                            " > " + make_output + " 2>&1";
+
+    int result = system(make_command.ToAscii());
+    m_compile_output->LoadFile(make_output);
+
+    if (result == 0) {
         m_status_bar->SetStatusText("Compilation succeeded.");
         return temp_file_name + ".o";
     } else {

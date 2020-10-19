@@ -25,10 +25,10 @@ namespace stmdsp
         }
     }
 
-    std::vector<adcsample_t> device::sample(unsigned long int count) {
+    /*std::vector<adcsample_t> device::sample(unsigned long int count) {
         if (connected()) {
             uint8_t request[3] = {
-                'r',
+                'd',
                 static_cast<uint8_t>(count),
                 static_cast<uint8_t>(count >> 8)
             };
@@ -39,7 +39,7 @@ namespace stmdsp
         } else {
             return {};
         }
-    }
+    }*/
 
     void device::continuous_start() {
         if (connected())
@@ -63,7 +63,7 @@ namespace stmdsp
 
     std::vector<adcsample_t> device::continuous_read() {
         if (connected()) {
-            m_serial.write("s");
+            m_serial.write("a");
             std::vector<adcsample_t> data (2048);
             m_serial.read(reinterpret_cast<uint8_t *>(data.data()), 2048 * sizeof(adcsample_t));
             return data;
@@ -80,7 +80,7 @@ namespace stmdsp
     void device::upload_filter(unsigned char *buffer, size_t size) {
         if (connected()) {
             uint8_t request[3] = {
-                'e',
+                'E',
                 static_cast<uint8_t>(size),
                 static_cast<uint8_t>(size >> 8)
             };
@@ -92,6 +92,6 @@ namespace stmdsp
 
     void device::unload_filter() {
         if (connected())
-            m_serial.write("E");
+            m_serial.write("e");
     }
 }

@@ -38,7 +38,7 @@ namespace stmdsp
             return m_serial.isOpen();
         }
 
-        std::vector<adcsample_t> sample(unsigned long int count = 1);
+        //std::vector<adcsample_t> sample(unsigned long int count = 1);
 
         void continuous_start();
         void continuous_start_measure();

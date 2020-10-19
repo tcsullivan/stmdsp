@@ -1,3 +1,10 @@
+/**
+ * @file elf_format.cpp
+ * @brief Defines ELF binary format info.
+ *
+ * Free to use, written by Clyne Sullivan.
+ */
+
 #ifndef STMDSP_ELF_FORMAT_HPP_
 #define STMDSP_ELF_FORMAT_HPP_
 

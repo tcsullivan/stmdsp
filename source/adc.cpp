@@ -26,7 +26,7 @@ static ADCConversionGroup adc_group_config = {
     .end_cb = adc_read_callback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(12),  /* TIM4_TRGO */
-    .cfgr2 = 0,
+    .cfgr2 = 0,//ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
     .tr1 = ADC_TR(0, 4095),
     .smpr = {
         ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5), 0

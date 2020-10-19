@@ -1,10 +1,19 @@
+/**
+ * @file elf_load.cpp
+ * @brief Loads ELF binary data into memory for execution.
+ *
+ * Copyright (C) 2020 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "elf_load.hpp"
 #include "elf_format.hpp"
 
 #include <algorithm>
 #include <cstring>
-
-//constexpr unsigned int ELF_LOAD_ADDR = 0x10000000;
 
 static const unsigned char elf_header[] = { '\177', 'E', 'L', 'F' };
 
@@ -13,8 +22,6 @@ constexpr static auto ptr_from_offset(void *base, uint32_t offset)
 {
     return reinterpret_cast<T>(reinterpret_cast<uint8_t *>(base) + offset);
 }
-
-//static Elf32_Shdr *find_section(Elf32_Ehdr *ehdr, const char *name);
 
 namespace elf {
 
@@ -51,21 +58,4 @@ entry_t load(void *elf_data)
 }
 
 } // namespace elf
-
-//Elf32_Shdr *find_section(Elf32_Ehdr *ehdr, const char *name)
-//{
-//    auto shdr = ptr_from_offset<Elf32_Shdr *>(ehdr, ehdr->e_shoff);
-//    auto shdr_str = ptr_from_offset<Elf32_Shdr *>(ehdr,
-//        ehdr->e_shoff + ehdr->e_shstrndx * ehdr->e_shentsize);
-//
-//    for (Elf32_Half i = 0; i < ehdr->e_shnum; i++) {
-//        char *section = ptr_from_offset<char *>(ehdr, shdr_str->sh_offset) + shdr->sh_name;
-//        if (!strcmp(section, name))
-//            return shdr;
-//
-//        shdr = ptr_from_offset<Elf32_Shdr *>(shdr, ehdr->e_shentsize);
-//    }
-//
-//    return 0;
-//}
 
