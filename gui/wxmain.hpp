@@ -36,6 +36,8 @@ public:
     void onRunStart(wxCommandEvent&);
     void onRunUpload(wxCommandEvent&);
     void onRunUnload(wxCommandEvent&);
+    void onRunGenUpload(wxCommandEvent&);
+    void onRunGenStart(wxCommandEvent&);
 
     void onRunCompile(wxCommandEvent&);
     void onCodeDisassemble(wxCommandEvent&);

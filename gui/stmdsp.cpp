@@ -77,6 +77,29 @@ namespace stmdsp
             m_serial.write("S");
     }
 
+    void device::siggen_upload(dacsample_t *buffer, unsigned int size) {
+        if (connected()) {
+            uint8_t request[3] = {
+                'D',
+                static_cast<uint8_t>(size),
+                static_cast<uint8_t>(size >> 8)
+            };
+            m_serial.write(request, 3);
+
+            m_serial.write((uint8_t *)buffer, size * sizeof(dacsample_t));
+        }
+    }
+
+    void device::siggen_start() {
+        if (connected())
+            m_serial.write("W");
+    }
+
+    void device::siggen_stop() {
+        if (connected())
+            m_serial.write("w");
+    }
+
     void device::upload_filter(unsigned char *buffer, size_t size) {
         if (connected()) {
             uint8_t request[3] = {

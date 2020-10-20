@@ -10,6 +10,9 @@
 #include <wx/sizer.h>
 #include <wx/splitter.h>
 #include <wx/statusbr.h>
+#include <wx/textdlg.h>
+
+#include <vector>
 
 enum Id {
     MeasureTimer = 1,
@@ -25,6 +28,8 @@ enum Id {
     MRunMeasure,
     MRunUpload,
     MRunUnload,
+    MRunGenUpload,
+    MRunGenStart,
     MCodeCompile,
     MCodeDisassemble
 };
@@ -98,6 +103,12 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
          menuRun->Append(MRunUpload, "&Upload code"));
     Bind(wxEVT_MENU, &MainFrame::onRunUnload, this, Id::MRunUnload, wxID_ANY,
          menuRun->Append(MRunUnload, "U&nload code"));
+
+    menuRun->AppendSeparator();
+    Bind(wxEVT_MENU, &MainFrame::onRunGenUpload, this, Id::MRunGenUpload, wxID_ANY,
+         menuRun->Append(MRunGenUpload, "&Load signal generator..."));
+    Bind(wxEVT_MENU, &MainFrame::onRunGenStart, this, Id::MRunGenStart, wxID_ANY,
+         menuRun->AppendCheckItem(MRunGenStart, "Start &generator"));
 
     Bind(wxEVT_MENU, &MainFrame::onRunCompile, this, Id::MCodeCompile, wxID_ANY,
          menuCode->Append(MCodeCompile, "&Compile code"));
@@ -395,6 +406,59 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
         menuItem->SetItemLabel("&Start");
         m_status_bar->SetStatusText("Ready.");
         m_is_running = false;
+    }
+}
+
+void MainFrame::onRunGenUpload([[maybe_unused]] wxCommandEvent&)
+{
+    if (m_device != nullptr && m_device->connected()) {
+        wxTextEntryDialog dialog (this, "Enter generator values", "Hey");
+        if (dialog.ShowModal() == wxID_OK) {
+            if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
+                std::vector<stmdsp::dacsample_t> samples;
+                while (!values.IsEmpty()) {
+                    if (auto number_end = values.find_first_not_of("0123456789");
+                        number_end != wxString::npos && number_end > 0)
+                    {
+                        auto number = values.Left(number_end);
+                        if (unsigned long n; number.ToULong(&n))
+                            samples.push_back(n & 4095);
+
+                        if (auto next = values.find_first_of("0123456789", number_end + 1);
+                            next != wxString::npos)
+                        {
+                            values = values.Mid(next);
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                m_device->siggen_upload(&samples[0], samples.size());
+            }
+        }
+    } else {
+        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
+        m_status_bar->SetStatusText("Please connect.");
+    }
+}
+
+void MainFrame::onRunGenStart(wxCommandEvent& ce)
+{
+    auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
+    if (m_device != nullptr && m_device->connected()) {
+        if (menuItem->IsChecked()) {
+            m_device->siggen_start();
+            menuItem->SetItemLabel("Stop &generator");
+        } else {
+            m_device->siggen_stop();
+            menuItem->SetItemLabel("Start &generator");
+        }
+    } else {
+        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
+        m_status_bar->SetStatusText("Please connect.");
     }
 }
 

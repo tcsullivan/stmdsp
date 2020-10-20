@@ -12,6 +12,7 @@
 #include "dac.hpp"
 
 constexpr static const auto dacd = &DACD1;
+constexpr static const auto dacd2 = &DACD2;
 constexpr static const auto gptd = &GPTD6;
 
 constexpr static const DACConfig dac_config = {
@@ -34,27 +35,40 @@ constexpr static const GPTConfig gpt_config = {
   .dier = 0
 };
 
+static unsigned int dacs_running = 0;
+
 namespace dac
 {
     void init()
     {
         palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
-        //palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
+        palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
     
         dacStart(dacd, &dac_config);
+        dacStart(dacd2, &dac_config);
         gptStart(gptd, &gpt_config);
     }
-    
-    void write_start(dacsample_t *buffer, size_t count)
+
+    void write_start(unsigned int channel, dacsample_t *buffer, size_t count)
     {
-        dacStartConversion(dacd, &dac_group_config, buffer, count);
-        gptStartContinuous(gptd, 25);
+        if (channel < 2) {
+            dacStartConversion(channel == 0 ? dacd : dacd2, &dac_group_config, buffer, count);
+
+            if (dacs_running == 0)
+                gptStartContinuous(gptd, 25);
+            dacs_running |= 1 << channel;
+        }
     }
     
-    void write_stop()
+    void write_stop(unsigned int channel)
     {
-        gptStopTimer(gptd);
-        dacStopConversion(dacd);
+        if (channel < 2) {
+            dacStopConversion(channel == 0 ? dacd : dacd2);
+
+            dacs_running &= ~(1 << channel);
+            if (dacs_running == 0)
+                gptStopTimer(gptd);
+        }
     }
 }
 

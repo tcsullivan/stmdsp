@@ -17,8 +17,8 @@
 namespace dac
 {
     void init();
-    void write_start(dacsample_t *buffer, size_t count);
-    void write_stop();
+    void write_start(unsigned int channel, dacsample_t *buffer, size_t count);
+    void write_stop(unsigned int channel);
 }
 
 #endif // STMDSP_DAC_HPP_
