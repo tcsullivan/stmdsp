@@ -12,11 +12,14 @@ public:
     virtual bool OnInit() final {
         wxFont::AddPrivateFont("./Hack-Regular.ttf");
 
-        auto mainFrame = new MainFrame;
-        mainFrame->Show(true);
-        SetTopWindow(mainFrame);
+        m_main_frame = new MainFrame;
+        m_main_frame->Show(true);
+        SetTopWindow(m_main_frame);
         return true;
     }
+
+private:
+    MainFrame *m_main_frame = nullptr;
 };
 
 #endif // WXAPP_HPP_

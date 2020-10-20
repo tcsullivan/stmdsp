@@ -23,17 +23,22 @@ class MainFrame : public wxFrame
 public:
     MainFrame();
 
+    void onCloseEvent(wxCloseEvent&);
+
     void onFileNew(wxCommandEvent&);
     void onFileOpen(wxCommandEvent&);
+    void onFileOpenTemplate(wxCommandEvent&);
     void onFileSave(wxCommandEvent&);
     void onFileSaveAs(wxCommandEvent&);
     void onFileQuit(wxCommandEvent&);
 
     void onRunConnect(wxCommandEvent&);
     void onRunStart(wxCommandEvent&);
-    void onRunCompile(wxCommandEvent&);
     void onRunUpload(wxCommandEvent&);
     void onRunUnload(wxCommandEvent&);
+
+    void onRunCompile(wxCommandEvent&);
+    void onCodeDisassemble(wxCommandEvent&);
 
     void onMeasureTimer(wxTimerEvent& te);
 
@@ -46,13 +51,16 @@ private:
     wxMenuItem *m_run_measure = nullptr;
     wxTimer *m_measure_timer = nullptr;
     wxStatusBar *m_status_bar = nullptr;
+    wxMenuBar *m_menu_bar = nullptr;
     wxString m_open_file_path;
+    wxString m_temp_file_name;
 
     stmdsp::device *m_device = nullptr;
 
     bool tryDevice();
     void prepareEditor();
     wxString compileEditorCode();
+    wxMenu *loadTemplates();
 };
 
 #endif // WXMAIN_HPP_

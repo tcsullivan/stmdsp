@@ -1,10 +1,14 @@
 #include "wxmain.hpp"
 
+#include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/filedlg.h>
 #include <wx/menu.h>
+#include <wx/menuitem.h>
 #include <wx/msgdlg.h>
+#include <wx/panel.h>
 #include <wx/sizer.h>
+#include <wx/splitter.h>
 #include <wx/statusbr.h>
 
 enum Id {
@@ -12,28 +16,69 @@ enum Id {
 
     MFileNew,
     MFileOpen,
+    MFileOpenTemplate,
     MFileSave,
     MFileSaveAs,
     MFileQuit,
     MRunConnect,
     MRunStart,
     MRunMeasure,
-    MRunCompile,
     MRunUpload,
-    MRunUnload
+    MRunUnload,
+    MCodeCompile,
+    MCodeDisassemble
 };
 
-MainFrame::MainFrame() : wxFrame(nullptr, -1, "stmdspgui", wxPoint(50, 50), wxSize(640, 800))
+MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50), wxSize(640, 800))
 {
+    auto splitter = new wxSplitterWindow(this, wxID_ANY);
+    auto panelCode = new wxPanel(splitter, wxID_ANY);
+    auto panelOutput = new wxPanel(splitter, wxID_ANY);
+    auto sizerCode = new wxBoxSizer(wxVERTICAL);
+    auto sizerOutput = new wxBoxSizer(wxVERTICAL);
+    auto sizerSplitter = new wxBoxSizer(wxVERTICAL);
+    auto menuFile = new wxMenu;
+    auto menuRun = new wxMenu;
+    auto menuCode = new wxMenu;
+
+    // Member initialization
     m_status_bar = new wxStatusBar(this);
+    m_text_editor = new wxStyledTextCtrl(panelCode, wxID_ANY, wxDefaultPosition, wxSize(620, 500));
+    m_compile_output = new wxTextCtrl(panelOutput, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                                      wxSize(620, 250), wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL);
+    m_measure_timer = new wxTimer(this, Id::MeasureTimer);
+    m_menu_bar = new wxMenuBar;
+
     m_status_bar->SetStatusText("Ready.");
     SetStatusBar(m_status_bar);
 
-    auto menubar = new wxMenuBar;
-    auto menuFile = new wxMenu;
+    splitter->SetSashGravity(0.5);
+    splitter->SetMinimumPaneSize(20);
+
+    prepareEditor();
+    sizerCode->Add(m_text_editor, 1, wxEXPAND | wxALL, 0);
+    panelCode->SetSizer(sizerCode);
+
+    m_compile_output->SetBackgroundColour(wxColour(0, 0, 0));
+    m_compile_output->SetDefaultStyle(wxTextAttr(*wxWHITE, *wxBLACK, wxFont("Hack")));
+    sizerOutput->Add(m_compile_output, 1, wxEXPAND | wxALL, 0);
+    panelOutput->SetSizer(sizerOutput);
+
+    splitter->SplitHorizontally(panelCode, panelOutput, 500);
+
+    sizerSplitter->Add(splitter, 1, wxEXPAND, 5);
+    SetSizer(sizerSplitter);
+    sizerSplitter->SetSizeHints(this);
+
+    Bind(wxEVT_TIMER, &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
+
     Bind(wxEVT_MENU, &MainFrame::onFileNew, this, Id::MFileNew, wxID_ANY,
          menuFile->Append(MFileNew, "&New"));
-    Bind(wxEVT_MENU, &MainFrame::onFileOpen, this, Id::MFileOpen, wxID_ANY, menuFile->Append(MFileOpen, "&Open"));
+    Bind(wxEVT_MENU, &MainFrame::onFileOpen, this, Id::MFileOpen, wxID_ANY,
+         menuFile->Append(MFileOpen, "&Open"));
+
+    menuFile->Append(MFileOpenTemplate, "Open &Template", loadTemplates());
+
     Bind(wxEVT_MENU, &MainFrame::onFileSave, this, Id::MFileSave, wxID_ANY,
          menuFile->Append(MFileSave, "&Save"));
     Bind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs, wxID_ANY,
@@ -42,7 +87,6 @@ MainFrame::MainFrame() : wxFrame(nullptr, -1, "stmdspgui", wxPoint(50, 50), wxSi
     Bind(wxEVT_MENU, &MainFrame::onFileQuit, this, Id::MFileQuit, wxID_ANY,
          menuFile->Append(MFileQuit, "&Quit"));
 
-    auto menuRun = new wxMenu;
     Bind(wxEVT_MENU, &MainFrame::onRunConnect, this, Id::MRunConnect, wxID_ANY,
          menuRun->Append(MRunConnect, "&Connect"));
     menuRun->AppendSeparator();
@@ -50,31 +94,34 @@ MainFrame::MainFrame() : wxFrame(nullptr, -1, "stmdspgui", wxPoint(50, 50), wxSi
          menuRun->Append(MRunStart, "&Start"));
     m_run_measure = menuRun->AppendCheckItem(MRunMeasure, "&Measure code time");
     menuRun->AppendSeparator();
-    Bind(wxEVT_MENU, &MainFrame::onRunCompile, this, Id::MRunCompile, wxID_ANY,
-         menuRun->Append(MRunCompile, "&Compile code"));
     Bind(wxEVT_MENU, &MainFrame::onRunUpload, this, Id::MRunUpload, wxID_ANY,
          menuRun->Append(MRunUpload, "&Upload code"));
     Bind(wxEVT_MENU, &MainFrame::onRunUnload, this, Id::MRunUnload, wxID_ANY,
          menuRun->Append(MRunUnload, "U&nload code"));
 
-    menubar->Append(menuFile, "&File");
-    menubar->Append(menuRun, "&Run");
-    SetMenuBar(menubar);
+    Bind(wxEVT_MENU, &MainFrame::onRunCompile, this, Id::MCodeCompile, wxID_ANY,
+         menuCode->Append(MCodeCompile, "&Compile code"));
+    Bind(wxEVT_MENU, &MainFrame::onCodeDisassemble, this, Id::MCodeDisassemble, wxID_ANY,
+         menuCode->Append(MCodeDisassemble, "Show &Disassembly"));
 
-    auto window = new wxBoxSizer(wxVERTICAL);
+    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent, this, wxID_ANY);
 
-    m_text_editor = new wxStyledTextCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(620, 500));
-    prepareEditor();
-    window->Add(m_text_editor, 2, wxEXPAND | wxALL, 10);
+    m_menu_bar->Append(menuFile, "&File");
+    m_menu_bar->Append(menuRun, "&Run");
+    m_menu_bar->Append(menuCode, "&Code");
+    SetMenuBar(m_menu_bar);
+}
 
-    m_compile_output = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
-                                      wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL);
-    window->Add(m_compile_output, 1, wxEXPAND | wxALL, 10);
+void MainFrame::onCloseEvent(wxCloseEvent& event)
+{
+    SetMenuBar(nullptr);
+    m_menu_bar->Remove(2);
+    m_menu_bar->Remove(1);
+    m_menu_bar->Remove(0);
+    delete m_menu_bar;
+    delete m_measure_timer;
 
-    SetSizerAndFit(window);
-
-    m_measure_timer = new wxTimer(this, Id::MeasureTimer);
-    Bind(wxEVT_TIMER, &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
+    event.Skip();
 }
 
 void MainFrame::onMeasureTimer([[maybe_unused]] wxTimerEvent&)
@@ -157,24 +204,25 @@ extern "C" void process_data_entry()
 
 wxString MainFrame::compileEditorCode()
 {
-    static wxString temp_file_name;
+    if (m_temp_file_name.IsEmpty())
+        m_temp_file_name = wxFileName::CreateTempFileName("stmdspgui");
 
-    if (temp_file_name.IsEmpty())
-        temp_file_name = wxFileName::CreateTempFileName("stmdspgui");
-
-    wxFile file (temp_file_name, wxFile::write);
+    wxFile file (m_temp_file_name, wxFile::write);
     file.Write(file_header + m_text_editor->GetText());
     file.Close();
 
-    wxFile makefile (temp_file_name + "make", wxFile::write);
+    wxFile makefile (m_temp_file_name + "make", wxFile::write);
     wxString make_text (makefile_text);
-    make_text.Replace("$0", temp_file_name);
+    make_text.Replace("$0", m_temp_file_name);
     makefile.Write(make_text);
     makefile.Close();
 
-    wxString make_output = temp_file_name + "make.log";
-    wxString make_command = wxString("make -C ") + temp_file_name.BeforeLast('/') +
-                            " -f " + temp_file_name + "make" +
+    wxString make_output = m_temp_file_name + "make.log";
+    if (wxFile::Exists(make_output))
+        wxRemoveFile(make_output);
+
+    wxString make_command = wxString("make -C ") + m_temp_file_name.BeforeLast('/') +
+                            " -f " + m_temp_file_name + "make" +
                             " > " + make_output + " 2>&1";
 
     int result = system(make_command.ToAscii());
@@ -182,9 +230,11 @@ wxString MainFrame::compileEditorCode()
 
     if (result == 0) {
         m_status_bar->SetStatusText("Compilation succeeded.");
-        return temp_file_name + ".o";
+        m_compile_output->ChangeValue("");
+        return m_temp_file_name + ".o";
     } else {
         m_status_bar->SetStatusText("Compilation failed.");
+        m_compile_output->LoadFile(make_output);
         return "";
     }
 }
@@ -211,7 +261,8 @@ void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
     if (openDialog.ShowModal() != wxID_CANCEL) {
         if (wxFileInputStream file_stream (openDialog.GetPath()); file_stream.IsOk()) {
             auto size = file_stream.GetSize();
-            auto buffer = new char[size];
+            auto buffer = new char[size + 1];
+            buffer[size] = '\0';
             if (file_stream.ReadAll(buffer, size)) {
                 m_open_file_path = openDialog.GetPath();
                 m_text_editor->SetText(buffer);
@@ -222,6 +273,25 @@ void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
         }
     }
 }
+
+void MainFrame::onFileOpenTemplate(wxCommandEvent& event)
+{
+    auto file_path = wxGetCwd() + "/templates/" + m_menu_bar->GetLabel(event.GetId());
+
+    if (wxFileInputStream file_stream (file_path); file_stream.IsOk()) {
+        auto size = file_stream.GetSize();
+        auto buffer = new char[size + 1];
+        buffer[size] = '\0';
+        if (file_stream.ReadAll(buffer, size)) {
+            m_open_file_path = "";
+            m_text_editor->SetText(buffer);
+            //m_text_editor->DiscardEdits();
+            m_status_bar->SetStatusText("Ready.");
+        }
+        delete[] buffer;
+    }
+}
+
 
 void MainFrame::onFileSave(wxCommandEvent& ce)
 {
@@ -328,11 +398,6 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
     }
 }
 
-void MainFrame::onRunCompile([[maybe_unused]] wxCommandEvent&)
-{
-    compileEditorCode();
-}
-
 void MainFrame::onRunUpload([[maybe_unused]] wxCommandEvent&)
 {
     if (auto file = compileEditorCode(); !file.IsEmpty()) {
@@ -361,5 +426,44 @@ void MainFrame::onRunUnload([[maybe_unused]] wxCommandEvent&)
     } else {
         m_status_bar->SetStatusText("No device connected.");
     }
+}
+
+void MainFrame::onRunCompile([[maybe_unused]] wxCommandEvent&)
+{
+    compileEditorCode();
+}
+
+void MainFrame::onCodeDisassemble([[maybe_unused]] wxCommandEvent&)
+{
+    auto output = m_temp_file_name + ".asm.log";
+    wxString command = wxString("arm-none-eabi-objdump -d ") + m_temp_file_name + ".orig.o"
+                                " > " + output + " 2>&1";
+
+    if (system(command.ToAscii()) == 0) {
+        m_compile_output->LoadFile(output);
+        m_status_bar->SetStatusText(wxString::Format(wxT("Done. Line count: %u."),
+                                                         m_compile_output->GetNumberOfLines()));
+    } else {
+        m_compile_output->ChangeValue("");
+        m_status_bar->SetStatusText("Failed to load disassembly (code compiled?).");
+    }
+}
+
+wxMenu *MainFrame::loadTemplates()
+{
+    wxMenu *menu = new wxMenu;
+
+    wxArrayString files;
+    if (wxDir::GetAllFiles(wxGetCwd() + "/templates", &files, "*.cpp", wxDIR_FILES) > 0) {
+        files.Sort();
+        int id = 1000;
+        for (auto file : files) {
+            Bind(wxEVT_MENU, &MainFrame::onFileOpenTemplate, this, id, wxID_ANY,
+                menu->Append(id, file.AfterLast('/')));
+            id++;
+        }
+    }
+
+    return menu;
 }
 
