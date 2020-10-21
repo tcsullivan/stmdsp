@@ -12,7 +12,7 @@
 #include "adc.hpp"
 
 constexpr static const auto adcd = &ADCD1;
-constexpr static const auto gptd = &GPTD4;
+constexpr static const auto gptd = &GPTD7;
 
 constexpr static const ADCConfig adc_config = {
     .difsel = 0

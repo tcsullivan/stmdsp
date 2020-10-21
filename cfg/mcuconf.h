@@ -33,7 +33,7 @@
 
 #define STM32L4xx_MCUCONF
 #define STM32L476_MCUCONF
-#define STM32L486_MCUCONF
+//#define STM32L432_MCUCONF
 
 /*
  * HAL driver system settings.
@@ -135,8 +135,8 @@
 #define STM32_ADC_DUAL_MODE                 FALSE
 #define STM32_ADC_COMPACT_SAMPLES           FALSE
 #define STM32_ADC_USE_ADC1                  TRUE
-#define STM32_ADC_USE_ADC2                  TRUE
-#define STM32_ADC_USE_ADC3                  TRUE
+#define STM32_ADC_USE_ADC2                  FALSE
+#define STM32_ADC_USE_ADC3                  FALSE 
 #define STM32_ADC_ADC1_DMA_STREAM           STM32_DMA_STREAM_ID(1, 1)
 #define STM32_ADC_ADC2_DMA_STREAM           STM32_DMA_STREAM_ID(1, 2)
 #define STM32_ADC_ADC3_DMA_STREAM           STM32_DMA_STREAM_ID(1, 3)
@@ -178,10 +178,10 @@
 #define STM32_GPT_USE_TIM1                  FALSE
 #define STM32_GPT_USE_TIM2                  FALSE
 #define STM32_GPT_USE_TIM3                  FALSE
-#define STM32_GPT_USE_TIM4                  TRUE
+#define STM32_GPT_USE_TIM4                  FALSE
 #define STM32_GPT_USE_TIM5                  FALSE
 #define STM32_GPT_USE_TIM6                  TRUE
-#define STM32_GPT_USE_TIM7                  FALSE
+#define STM32_GPT_USE_TIM7                  TRUE
 #define STM32_GPT_USE_TIM8                  FALSE
 #define STM32_GPT_USE_TIM15                 FALSE
 #define STM32_GPT_USE_TIM16                 FALSE
@@ -335,9 +335,16 @@
 /*
  * USB driver system settings.
  */
+#ifdef STM32L476_MCUCONF
 #define STM32_USB_USE_OTG1                  TRUE
 #define STM32_USB_OTG1_IRQ_PRIORITY         14
 #define STM32_USB_OTG1_RX_FIFO_SIZE         512
+#else
+#define STM32_USB_USE_USB1                  TRUE
+#define STM32_USB_LOW_POWER_ON_SUSPEND      FALSE
+#define STM32_USB_USB1_HP_IRQ_PRIORITY      13
+#define STM32_USB_USB1_LP_IRQ_PRIORITY      14
+#endif // STM32L476_MCUCONF
 
 /*
  * WDG driver system settings.

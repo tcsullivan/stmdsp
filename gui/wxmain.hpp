@@ -36,6 +36,7 @@ public:
     void onRunStart(wxCommandEvent&);
     void onRunUpload(wxCommandEvent&);
     void onRunUnload(wxCommandEvent&);
+    void onRunEditBSize(wxCommandEvent&);
     void onRunGenUpload(wxCommandEvent&);
     void onRunGenStart(wxCommandEvent&);
 

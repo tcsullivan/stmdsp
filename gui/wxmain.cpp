@@ -28,6 +28,7 @@ enum Id {
     MRunMeasure,
     MRunUpload,
     MRunUnload,
+    MRunEditBSize,
     MRunGenUpload,
     MRunGenStart,
     MCodeCompile,
@@ -103,6 +104,8 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
          menuRun->Append(MRunUpload, "&Upload code"));
     Bind(wxEVT_MENU, &MainFrame::onRunUnload, this, Id::MRunUnload, wxID_ANY,
          menuRun->Append(MRunUnload, "U&nload code"));
+    Bind(wxEVT_MENU, &MainFrame::onRunEditBSize, this, Id::MRunEditBSize, wxID_ANY,
+         menuRun->Append(MRunEditBSize, "Set &buffer size..."));
 
     menuRun->AppendSeparator();
     Bind(wxEVT_MENU, &MainFrame::onRunGenUpload, this, Id::MRunGenUpload, wxID_ANY,
@@ -409,10 +412,38 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
     }
 }
 
+void MainFrame::onRunEditBSize([[maybe_unused]] wxCommandEvent&)
+{
+    if (m_device != nullptr && m_device->connected()) {
+        wxTextEntryDialog dialog (this, "Enter new buffer size (100-4000)", "Set Buffer Size");
+        if (dialog.ShowModal() == wxID_OK) {
+            if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
+                if (unsigned long n; value.ToULong(&n)) {
+                    if (n >= 100 && n <= stmdsp::SAMPLES_MAX) {
+                        m_device->continuous_set_buffer_size(n);
+                    } else {
+                        m_status_bar->SetStatusText("Error: Invalid buffer size.");
+                    }
+                } else {
+                    m_status_bar->SetStatusText("Error: Invalid buffer size.");
+                }
+            } else {
+                m_status_bar->SetStatusText("Ready.");
+            }
+        } else {
+            m_status_bar->SetStatusText("Ready.");
+        }
+    } else {
+        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
+        m_status_bar->SetStatusText("Please connect.");
+    }
+}
+
 void MainFrame::onRunGenUpload([[maybe_unused]] wxCommandEvent&)
 {
     if (m_device != nullptr && m_device->connected()) {
-        wxTextEntryDialog dialog (this, "Enter generator values", "Hey");
+        wxTextEntryDialog dialog (this, "Enter generator values below. Values must be whole numbers "
+                                        "between zero and 4095.", "Enter Generator Values");
         if (dialog.ShowModal() == wxID_OK) {
             if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
                 std::vector<stmdsp::dacsample_t> samples;
@@ -436,8 +467,17 @@ void MainFrame::onRunGenUpload([[maybe_unused]] wxCommandEvent&)
                     }
                 }
 
-                m_device->siggen_upload(&samples[0], samples.size());
+                if (samples.size() <= stmdsp::SAMPLES_MAX) {
+                    m_device->siggen_upload(&samples[0], samples.size());
+                    m_status_bar->SetStatusText("Generator ready.");
+                } else {
+                    m_status_bar->SetStatusText("Error: Too many samples.");
+                }
+            } else {
+                m_status_bar->SetStatusText("Error: No samples given.");
             }
+        } else {
+            m_status_bar->SetStatusText("Ready.");
         }
     } else {
         wxMessageBox("No device connected!", "Run", wxICON_WARNING);
@@ -500,7 +540,7 @@ void MainFrame::onRunCompile([[maybe_unused]] wxCommandEvent&)
 void MainFrame::onCodeDisassemble([[maybe_unused]] wxCommandEvent&)
 {
     auto output = m_temp_file_name + ".asm.log";
-    wxString command = wxString("arm-none-eabi-objdump -d ") + m_temp_file_name + ".orig.o"
+    wxString command = wxString("arm-none-eabi-objdump -d --no-show-raw-insn ") + m_temp_file_name + ".orig.o"
                                 " > " + output + " 2>&1";
 
     if (system(command.ToAscii()) == 0) {

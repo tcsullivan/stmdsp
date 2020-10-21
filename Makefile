@@ -55,13 +55,13 @@ endif
 # Stack size to be allocated to the Cortex-M process stack. This stack is
 # the stack used by the main() thread.
 ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 8192
+  USE_PROCESS_STACKSIZE = 4096
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 0x400
+  USE_EXCEPTIONS_STACKSIZE = 1024
 endif
 
 # Enables the use of FPU (no, softfp, hard).
@@ -102,6 +102,8 @@ include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.m
 include $(CHIBIOS)/os/hal/hal.mk
 include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
 include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
+#include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
+#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -115,6 +117,7 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 
 # Define linker script file here.
 LDSCRIPT= $(STARTUPLD)/STM32L476xG.ld
+#LDSCRIPT= $(STARTUPLD)/STM32L432xC.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

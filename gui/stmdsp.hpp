@@ -8,6 +8,8 @@
 
 namespace stmdsp
 {
+    constexpr unsigned int SAMPLES_MAX = 4000;
+
     class scanner
     {
     private:

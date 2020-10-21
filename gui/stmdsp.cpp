@@ -41,6 +41,17 @@ namespace stmdsp
         }
     }*/
 
+    void device::continuous_set_buffer_size(unsigned int size) {
+        if (connected()) {
+            uint8_t request[3] = {
+                'B',
+                static_cast<uint8_t>(size),
+                static_cast<uint8_t>(size >> 8)
+            };
+            m_serial.write(request, 3);
+        }
+    }
+
     void device::continuous_start() {
         if (connected())
             m_serial.write("R");
