@@ -253,14 +253,15 @@ void main_loop()
                     }
                     break;
 
-                //case 'r':
-                //    if (usbserial::read(&cmd[1], 1) == 1) {
+                case 'r':
+                    if (usbserial::read(&cmd[1], 1) == 1) {
+                        adc::set_rate(static_cast<adc::rate>(cmd[1]));
                 //        adc_preloaded = cmd[1] & (1 << 0);
                 //        dac_preloaded = cmd[1] & (1 << 1);
-                //    } else {
-                //        error_queue_add(Error::BadParamSize);
-                //    }
-                //    break;
+                    } else {
+                        error_queue_add(Error::BadParamSize);
+                    }
+                    break;
 
                 // 'S' - Stops the continuous sampling/conversion.
                 case 'S':

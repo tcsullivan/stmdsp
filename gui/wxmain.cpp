@@ -29,6 +29,7 @@ enum Id {
     MRunUpload,
     MRunUnload,
     MRunEditBSize,
+    MRunEditSRate,
     MRunGenUpload,
     MRunGenStart,
     MCodeCompile,
@@ -106,6 +107,8 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
          menuRun->Append(MRunUnload, "U&nload code"));
     Bind(wxEVT_MENU, &MainFrame::onRunEditBSize, this, Id::MRunEditBSize, wxID_ANY,
          menuRun->Append(MRunEditBSize, "Set &buffer size..."));
+    Bind(wxEVT_MENU, &MainFrame::onRunEditSRate, this, Id::MRunEditSRate, wxID_ANY,
+         menuRun->Append(MRunEditSRate, "Set sample &rate..."));
 
     menuRun->AppendSeparator();
     Bind(wxEVT_MENU, &MainFrame::onRunGenUpload, this, Id::MRunGenUpload, wxID_ANY,
@@ -426,6 +429,33 @@ void MainFrame::onRunEditBSize([[maybe_unused]] wxCommandEvent&)
                     }
                 } else {
                     m_status_bar->SetStatusText("Error: Invalid buffer size.");
+                }
+            } else {
+                m_status_bar->SetStatusText("Ready.");
+            }
+        } else {
+            m_status_bar->SetStatusText("Ready.");
+        }
+    } else {
+        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
+        m_status_bar->SetStatusText("Please connect.");
+    }
+}
+
+void MainFrame::onRunEditSRate([[maybe_unused]] wxCommandEvent&)
+{
+    if (m_device != nullptr && m_device->connected()) {
+        wxTextEntryDialog dialog (this, "Enter new sample rate id:", "Set Sample Rate");
+        if (dialog.ShowModal() == wxID_OK) {
+            if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
+                if (unsigned long n; value.ToULong(&n)) {
+                    if (n < 20) {
+                        m_device->set_sample_rate(n);
+                    } else {
+                        m_status_bar->SetStatusText("Error: Invalid sample rate.");
+                    }
+                } else {
+                    m_status_bar->SetStatusText("Error: Invalid sample rate.");
                 }
             } else {
                 m_status_bar->SetStatusText("Ready.");

@@ -52,6 +52,16 @@ namespace stmdsp
         }
     }
 
+    void device::set_sample_rate(unsigned int id) {
+        if (connected()) {
+            uint8_t request[2] = {
+                'r',
+                static_cast<uint8_t>(id)
+            };
+            m_serial.write(request, 2);
+        }
+    }
+
     void device::continuous_start() {
         if (connected())
             m_serial.write("R");

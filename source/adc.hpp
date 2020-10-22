@@ -18,23 +18,38 @@ namespace adc
 {
     using operation_t = void (*)(adcsample_t *buffer, size_t count);
 
-    enum class rate {
-        R2P5,
-        R6P5,
-        R12P5,
-        R24P5,
-        R47P5,
-        R92P5,
-        R247P5,
-        R640P5
+    enum class rate : unsigned int {
+        R3125 = 0,
+        R3750,
+        R6250,
+        R7500,
+        R12K5,
+        R15K,
+        R25K,
+        R30K,
+        R40K,
+        R50K,
+        R60K,
+        R80K,
+        R96K,
+        R100K,
+        R120K,
+        R160K,
+        R200K,
+        R240K,
+        R400K,
+        R480K,
+        R800K,
+        R960K,
+        R1M6
     };
     
     void init();
+    void set_rate(rate new_rate);
     adcsample_t *read(adcsample_t *buffer, size_t count);
     void read_start(operation_t operation_func, adcsample_t *buffer, size_t count);
     void read_set_operation_func(operation_t operation_func);
     void read_stop();
-    void set_rate(rate r);
 }
 
 #endif // STMDSP_ADC_HPP_

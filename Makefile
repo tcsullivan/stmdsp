@@ -100,10 +100,10 @@ include $(CHIBIOS)/os/license/license.mk
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
-include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
-#include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
-#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
+#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
+#include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
+include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
+include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -116,8 +116,8 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 #include $(CHIBIOS)/test/oslib/oslib_test.mk
 
 # Define linker script file here.
-LDSCRIPT= $(STARTUPLD)/STM32L476xG.ld
-#LDSCRIPT= $(STARTUPLD)/STM32L432xC.ld
+#LDSCRIPT= $(STARTUPLD)/STM32L476xG.ld
+LDSCRIPT= $(STARTUPLD)/STM32L432xC.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

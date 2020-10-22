@@ -44,6 +44,7 @@ namespace stmdsp
         //std::vector<adcsample_t> sample(unsigned long int count = 1);
 
         void continuous_set_buffer_size(unsigned int size);
+        void set_sample_rate(unsigned int id);
         void continuous_start();
         void continuous_start_measure();
         uint32_t continuous_start_get_measurement();

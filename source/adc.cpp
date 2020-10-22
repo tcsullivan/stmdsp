@@ -44,6 +44,32 @@ constexpr static const GPTConfig gpt_config = {
     .dier = 0
 };
 
+static uint32_t adc_sample_rate_settings[] = {
+    10, ADC_SMPR_SMP_47P5, // 3125
+    11, ADC_SMPR_SMP_12P5, // 3750
+    9,  ADC_SMPR_SMP_47P5, // 6250
+    10, ADC_SMPR_SMP_12P5, // 7500
+    8,  ADC_SMPR_SMP_47P5, // 12K5
+    9,  ADC_SMPR_SMP_12P5, // 15K
+    7,  ADC_SMPR_SMP_47P5, // 25K
+    8,  ADC_SMPR_SMP_12P5, // 30K
+    5,  ADC_SMPR_SMP_47P5, // 40K
+    4,  ADC_SMPR_SMP_47P5, // 50K
+    7,  ADC_SMPR_SMP_12P5, // 60K
+    6,  ADC_SMPR_SMP_12P5, // 80K
+    5,  ADC_SMPR_SMP_12P5, // 96K
+    2,  ADC_SMPR_SMP_47P5, // 100K
+    4,  ADC_SMPR_SMP_12P5, // 120K
+    3,  ADC_SMPR_SMP_12P5, // 160K
+    1,  ADC_SMPR_SMP_47P5, // 200K
+    2,  ADC_SMPR_SMP_12P5, // 240K
+    0,  ADC_SMPR_SMP_47P5, // 400K
+    1,  ADC_SMPR_SMP_12P5, // 480K
+    1,  ADC_SMPR_SMP_2P5,  // 800K
+    0,  ADC_SMPR_SMP_12P5, // 960K
+    0,  ADC_SMPR_SMP_2P5   // 1M6
+};
+
 static bool adc_is_read_finished = false;
 static adcsample_t *adc_current_buffer = nullptr;
 static size_t adc_current_buffer_size = 0;
@@ -58,6 +84,19 @@ namespace adc
         gptStart(gptd, &gpt_config);
         adcStart(adcd, &adc_config);
         adcSTM32EnableVREF(adcd);
+    }
+
+    void set_rate(rate new_rate)
+    {
+        auto presc = adc_sample_rate_settings[static_cast<unsigned int>(new_rate) * 2] << 18;
+        auto smp = adc_sample_rate_settings[static_cast<unsigned int>(new_rate) * 2 + 1];
+    
+        adcStop(adcd);
+        // Set ADC prescaler
+        adcd->adcc->CCR = (adcd->adcc->CCR & ~(0xF << 18)) | presc;
+        // Set sampling time
+        adc_group_config.smpr[0] = ADC_SMPR1_SMP_AN5(smp);
+        adcStart(adcd, &adc_config);
     }
     
     adcsample_t *read(adcsample_t *buffer, size_t count)
@@ -94,42 +133,8 @@ namespace adc
         adc_current_buffer_size = 0;
         adc_operation_func = nullptr;
     }
- 
-    void set_rate(rate r)
-    {
-        uint32_t val = 0;
-    
-        switch (r) {
-        case rate::R2P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
-            break;
-        case rate::R6P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_6P5);
-            break;
-        case rate::R12P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5);
-            break;
-        case rate::R24P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_24P5);
-            break;
-        case rate::R47P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_47P5);
-            break;
-        case rate::R92P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_92P5);
-            break;
-        case rate::R247P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_247P5);
-            break;
-        case rate::R640P5:
-            val = ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_640P5);
-            break;
-        }
-    
-        adc_group_config.smpr[0] = val;
-    }
 }
-
+ 
 void adc_read_callback(ADCDriver *driver)
 {
     if (adc_group_config.circular) {
