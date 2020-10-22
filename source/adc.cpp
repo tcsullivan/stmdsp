@@ -12,7 +12,7 @@
 #include "adc.hpp"
 
 constexpr static const auto adcd = &ADCD1;
-constexpr static const auto gptd = &GPTD7;
+constexpr static const auto gptd = &GPTD6;
 
 constexpr static const ADCConfig adc_config = {
     .difsel = 0
@@ -25,7 +25,7 @@ static ADCConversionGroup adc_group_config = {
     .num_channels = 1,
     .end_cb = adc_read_callback,
     .error_cb = nullptr,
-    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(12),  /* TIM4_TRGO */
+    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM4_TRGO */
     .cfgr2 = 0,//ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
     .tr1 = ADC_TR(0, 4095),
     .smpr = {

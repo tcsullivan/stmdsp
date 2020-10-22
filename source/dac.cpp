@@ -13,7 +13,7 @@
 
 constexpr static const auto dacd = &DACD1;
 constexpr static const auto dacd2 = &DACD2;
-constexpr static const auto gptd = &GPTD6;
+constexpr static const auto gptd = &GPTD7;
 
 constexpr static const DACConfig dac_config = {
     .init = 0,
@@ -25,7 +25,7 @@ constexpr static const DACConversionGroup dac_group_config = {
   .num_channels = 1,
   .end_cb = nullptr,
   .error_cb = nullptr,
-  .trigger = DAC_TRG(0)
+  .trigger = DAC_TRG(2)
 };
 
 constexpr static const GPTConfig gpt_config = {
