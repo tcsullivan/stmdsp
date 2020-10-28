@@ -9,6 +9,7 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "adc.hpp"
 #include "dac.hpp"
 
 constexpr static const auto dacd = &DACD1;
@@ -29,7 +30,7 @@ constexpr static const DACConversionGroup dac_group_config = {
 };
 
 constexpr static const GPTConfig gpt_config = {
-  .frequency = 2400000,
+  .frequency = 1440000,
   .callback = nullptr,
   .cr2 = TIM_CR2_MMS_1, /* TRGO */
   .dier = 0
@@ -55,7 +56,7 @@ namespace dac
             dacStartConversion(channel == 0 ? dacd : dacd2, &dac_group_config, buffer, count);
 
             if (dacs_running == 0)
-                gptStartContinuous(gptd, 25);
+                gptStartContinuous(gptd, adc::get_gpt_divisor());
             dacs_running |= 1 << channel;
         }
     }

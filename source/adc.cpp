@@ -38,42 +38,43 @@ static ADCConversionGroup adc_group_config = {
 };
 
 constexpr static const GPTConfig gpt_config = {
-    .frequency = 2400000,
+    .frequency = 14400000,
     .callback = nullptr,
     .cr2 = TIM_CR2_MMS_1, /* TRGO */
     .dier = 0
 };
 
 static uint32_t adc_sample_rate_settings[] = {
-    10, ADC_SMPR_SMP_47P5, // 3125
-    11, ADC_SMPR_SMP_12P5, // 3750
-    9,  ADC_SMPR_SMP_47P5, // 6250
-    10, ADC_SMPR_SMP_12P5, // 7500
-    8,  ADC_SMPR_SMP_47P5, // 12K5
-    9,  ADC_SMPR_SMP_12P5, // 15K
-    7,  ADC_SMPR_SMP_47P5, // 25K
-    8,  ADC_SMPR_SMP_12P5, // 30K
-    5,  ADC_SMPR_SMP_47P5, // 40K
-    4,  ADC_SMPR_SMP_47P5, // 50K
-    7,  ADC_SMPR_SMP_12P5, // 60K
-    6,  ADC_SMPR_SMP_12P5, // 80K
-    5,  ADC_SMPR_SMP_12P5, // 96K
-    2,  ADC_SMPR_SMP_47P5, // 100K
-    4,  ADC_SMPR_SMP_12P5, // 120K
-    3,  ADC_SMPR_SMP_12P5, // 160K
-    1,  ADC_SMPR_SMP_47P5, // 200K
-    2,  ADC_SMPR_SMP_12P5, // 240K
-    0,  ADC_SMPR_SMP_47P5, // 400K
-    1,  ADC_SMPR_SMP_12P5, // 480K
-    1,  ADC_SMPR_SMP_2P5,  // 800K
-    0,  ADC_SMPR_SMP_12P5, // 960K
-    0,  ADC_SMPR_SMP_2P5   // 1M6
+    10, ADC_SMPR_SMP_47P5, 4608, // 3125
+    11, ADC_SMPR_SMP_12P5, 3840, // 3750
+    9,  ADC_SMPR_SMP_47P5, 2304, // 6250
+    10, ADC_SMPR_SMP_12P5, 1920, // 7500
+    8,  ADC_SMPR_SMP_47P5, 1152, // 12K5
+    9,  ADC_SMPR_SMP_12P5, 960,  // 15K
+    7,  ADC_SMPR_SMP_47P5, 576,  // 25K
+    8,  ADC_SMPR_SMP_12P5, 480,  // 30K
+    5,  ADC_SMPR_SMP_47P5, 360,  // 40K
+    4,  ADC_SMPR_SMP_47P5, 288,  // 50K
+    7,  ADC_SMPR_SMP_12P5, 240,  // 60K
+    6,  ADC_SMPR_SMP_12P5, 180,  // 80K
+    5,  ADC_SMPR_SMP_12P5, 150,  // 96K
+    2,  ADC_SMPR_SMP_47P5, 144,  // 100K
+    4,  ADC_SMPR_SMP_12P5, 120,  // 120K
+    3,  ADC_SMPR_SMP_12P5, 90,   // 160K
+    1,  ADC_SMPR_SMP_47P5, 72,   // 200K
+    2,  ADC_SMPR_SMP_12P5, 60,   // 240K
+    0,  ADC_SMPR_SMP_47P5, 36,   // 400K
+    1,  ADC_SMPR_SMP_12P5, 30,   // 480K
+    1,  ADC_SMPR_SMP_2P5,  18,   // 800K
+    0,  ADC_SMPR_SMP_12P5, 15,   // 960K
+    0,  ADC_SMPR_SMP_2P5,  9     // 1M6
 };
 
 static bool adc_is_read_finished = false;
 static adcsample_t *adc_current_buffer = nullptr;
 static size_t adc_current_buffer_size = 0;
 static adc::operation_t adc_operation_func = nullptr;
+static unsigned int adc_gpt_divisor = 1;
 
 namespace adc
 {
@@ -84,12 +85,16 @@ namespace adc
         gptStart(gptd, &gpt_config);
         adcStart(adcd, &adc_config);
         adcSTM32EnableVREF(adcd);
+
+        set_rate(rate::R96K);
     }
 
     void set_rate(rate new_rate)
     {
-        auto presc = adc_sample_rate_settings[static_cast<unsigned int>(new_rate) * 2] << 18;
-        auto smp = adc_sample_rate_settings[static_cast<unsigned int>(new_rate) * 2 + 1];
+        auto index = static_cast<unsigned int>(new_rate);
+        auto presc = adc_sample_rate_settings[index * 3] << 18;
+        auto smp = adc_sample_rate_settings[index * 3 + 1];
+        adc_gpt_divisor = adc_sample_rate_settings[index * 3 + 2];
     
         adcStop(adcd);
         // Set ADC prescaler
@@ -98,13 +103,18 @@ namespace adc
         adc_group_config.smpr[0] = ADC_SMPR1_SMP_AN5(smp);
         adcStart(adcd, &adc_config);
     }
+
+    unsigned int get_gpt_divisor()
+    {
+        return adc_gpt_divisor;
+    }
     
     adcsample_t *read(adcsample_t *buffer, size_t count)
     {
         adc_is_read_finished = false;
         adc_group_config.circular = false;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 25);
+        gptStartContinuous(gptd, adc_gpt_divisor);
         while (!adc_is_read_finished);
         return buffer;
     }
@@ -116,7 +126,7 @@ namespace adc
         adc_operation_func = operation_func;
         adc_group_config.circular = true;
         adcStartConversion(adcd, &adc_group_config, buffer, count);
-        gptStartContinuous(gptd, 25);
+        gptStartContinuous(gptd, adc_gpt_divisor);
     }
 
     void read_set_operation_func(operation_t operation_func)
