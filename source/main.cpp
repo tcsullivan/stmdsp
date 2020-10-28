@@ -118,8 +118,6 @@ int main()
 static unsigned int dac_sample_count = MAX_SAMPLE_BUFFER_SIZE;
 static unsigned int dac2_sample_count = MAX_SAMPLE_BUFFER_SIZE;
 static unsigned int adc_sample_count = MAX_SAMPLE_BUFFER_SIZE;
-//static bool adc_preloaded = false;
-//static bool dac_preloaded = false;
 
 void main_loop()
 {
@@ -223,10 +221,8 @@ void main_loop()
                     if (run_status == RunStatus::Idle) {
                         run_status = RunStatus::Running;
                         dac_samples.fill(0);
-                        //if (!adc_preloaded)
-                            adc::read_start(signal_operate_measure, &adc_samples[0], adc_sample_count);
-                        //if (!dac_preloaded)
-                            dac::write_start(0, &dac_samples[0], dac_sample_count);
+                        adc::read_start(signal_operate_measure, &adc_samples[0], adc_sample_count);
+                        dac::write_start(0, &dac_samples[0], dac_sample_count);
                     } else {
                         error_queue_add(Error::NotIdle);
                     }
@@ -244,34 +240,31 @@ void main_loop()
                     if (run_status == RunStatus::Idle) {
                         run_status = RunStatus::Running;
                         dac_samples.fill(0);
-                        //if (!adc_preloaded)
-                            adc::read_start(signal_operate, &adc_samples[0], adc_sample_count);
-                        //if (!dac_preloaded)
-                            dac::write_start(0, &dac_samples[0], dac_sample_count);
+                        adc::read_start(signal_operate, &adc_samples[0], adc_sample_count);
+                        dac::write_start(0, &dac_samples[0], dac_sample_count);
                     } else {
                         error_queue_add(Error::NotIdle);
                     }
                     break;
 
                 case 'r':
-                    if (usbserial::read(&cmd[1], 1) == 1) {
+                    if (usbserial::read(&cmd[1], 1) == 1)
                         adc::set_rate(static_cast<adc::rate>(cmd[1]));
-                //        adc_preloaded = cmd[1] & (1 << 0);
-                //        dac_preloaded = cmd[1] & (1 << 1);
-                    } else {
+                    else
                         error_queue_add(Error::BadParamSize);
-                    }
                     break;
 
                 // 'S' - Stops the continuous sampling/conversion.
                 case 'S':
                     if (run_status == RunStatus::Running) {
-                        //if (!dac_preloaded)
-                            dac::write_stop(0);
-                        //if (!adc_preloaded)
-                            adc::read_stop();
+                        dac::write_stop(0);
+                        adc::read_stop();
                         run_status = RunStatus::Idle;
                     }
+                    break;
+
+                case 's':
+                    usbserial::write(dac_samples.data(), dac_sample_count * sizeof(dacsample_t));
                     break;
 
                 case 'W':
@@ -294,10 +287,8 @@ void main_loop()
 void conversion_abort()
 {
     elf_entry = nullptr;
-    //if (!dac_preloaded)
-        dac::write_stop(0);
-    //if (!adc_preloaded)
-        adc::read_stop();
+    dac::write_stop(0);
+    adc::read_stop();
     error_queue_add(Error::ConversionAborted);
 }
 
