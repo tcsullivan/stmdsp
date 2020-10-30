@@ -21,7 +21,8 @@
 
 constexpr unsigned int MAX_ELF_FILE_SIZE = 8 * 1024;
 constexpr unsigned int MAX_ERROR_QUEUE_SIZE = 8;
-constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 8000;
+constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 6000;
+constexpr unsigned int MAX_SIGGEN_BUFFER_SIZE = 3000;
 
 enum class RunStatus : char
 {
@@ -61,7 +62,7 @@ static Error error_queue_pop()
 static msg_t conversionMBBuffer[4];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 4);
 
-static THD_WORKING_AREA(conversionThreadWA, 1024);
+static THD_WORKING_AREA(conversionThreadWA, 2048);
 static THD_FUNCTION(conversionThread, arg);
 
 static time_measurement_t conversion_time_measurement;
@@ -80,7 +81,7 @@ static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SAMPLE_BUFFER_S
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
-static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SAMPLE_BUFFER_SIZE)> dac2_samples;
+static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SIGGEN_BUFFER_SIZE)> dac2_samples;
 
 static uint8_t elf_file_store[MAX_ELF_FILE_SIZE];
 static elf::entry_t elf_entry = nullptr;
@@ -116,7 +117,7 @@ int main()
 }
 
 static unsigned int dac_sample_count = MAX_SAMPLE_BUFFER_SIZE;
-static unsigned int dac2_sample_count = MAX_SAMPLE_BUFFER_SIZE;
+static unsigned int dac2_sample_count = MAX_SIGGEN_BUFFER_SIZE;
 static unsigned int adc_sample_count = MAX_SAMPLE_BUFFER_SIZE;
 
 void main_loop()
@@ -160,7 +161,7 @@ void main_loop()
                 case 'D':
                     if (usbserial::read(&cmd[1], 2) == 2) {
                         unsigned int count = cmd[1] | (cmd[2] << 8);
-                        if (count <= MAX_SAMPLE_BUFFER_SIZE / 2) {
+                        if (count <= MAX_SIGGEN_BUFFER_SIZE) {
                             dac2_sample_count = count;
                             usbserial::read(&dac2_samples[0], dac2_sample_count * sizeof(dacsample_t));
                         } else {

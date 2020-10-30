@@ -6,6 +6,7 @@
 # Compiler options here.
 ifeq ($(USE_OPT),)
   USE_OPT = -Og -ggdb -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
+#  USE_OPT = -Os -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
 endif
 
 # C specific options here (added to USE_OPT).
@@ -55,7 +56,7 @@ endif
 # Stack size to be allocated to the Cortex-M process stack. This stack is
 # the stack used by the main() thread.
 ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 4096
+  USE_PROCESS_STACKSIZE = 2048
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
@@ -100,10 +101,10 @@ include $(CHIBIOS)/os/license/license.mk
 include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
-#include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
-include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
-include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
+include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
+include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
+#include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
+#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -117,7 +118,7 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 
 # Define linker script file here.
 #LDSCRIPT= $(STARTUPLD)/STM32L476xG.ld
-LDSCRIPT= $(STARTUPLD)/STM32L432xC.ld
+LDSCRIPT= STM32L432xC_stmdsp.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

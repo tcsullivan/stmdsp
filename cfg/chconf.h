@@ -167,7 +167,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_REGISTRY)
-#define CH_CFG_USE_REGISTRY                 TRUE
+#define CH_CFG_USE_REGISTRY                 FALSE
 #endif
 
 /**
@@ -178,7 +178,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_WAITEXIT)
-#define CH_CFG_USE_WAITEXIT                 TRUE
+#define CH_CFG_USE_WAITEXIT                 FALSE
 #endif
 
 /**
@@ -235,7 +235,7 @@
  * @note    Requires @p CH_CFG_USE_MUTEXES.
  */
 #if !defined(CH_CFG_USE_CONDVARS)
-#define CH_CFG_USE_CONDVARS                 TRUE
+#define CH_CFG_USE_CONDVARS                 FALSE
 #endif
 
 /**
@@ -247,7 +247,7 @@
  * @note    Requires @p CH_CFG_USE_CONDVARS.
  */
 #if !defined(CH_CFG_USE_CONDVARS_TIMEOUT)
-#define CH_CFG_USE_CONDVARS_TIMEOUT         TRUE
+#define CH_CFG_USE_CONDVARS_TIMEOUT         FALSE
 #endif
 
 /**
@@ -269,7 +269,7 @@
  * @note    Requires @p CH_CFG_USE_EVENTS.
  */
 #if !defined(CH_CFG_USE_EVENTS_TIMEOUT)
-#define CH_CFG_USE_EVENTS_TIMEOUT           TRUE
+#define CH_CFG_USE_EVENTS_TIMEOUT           FALSE
 #endif
 
 /**
@@ -280,7 +280,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_MESSAGES)
-#define CH_CFG_USE_MESSAGES                 TRUE
+#define CH_CFG_USE_MESSAGES                 FALSE
 #endif
 
 /**
@@ -306,7 +306,7 @@
  * @note    Requires @p CH_CFG_USE_HEAP and/or @p CH_CFG_USE_MEMPOOLS.
  */
 #if !defined(CH_CFG_USE_DYNAMIC)
-#define CH_CFG_USE_DYNAMIC                  TRUE
+#define CH_CFG_USE_DYNAMIC                  FALSE
 #endif
 
 /** @} */
@@ -353,7 +353,7 @@
  * @note    Requires @p CH_CFG_USE_MEMCORE.
  */
 #if !defined(CH_CFG_MEMCORE_SIZE)
-#define CH_CFG_MEMCORE_SIZE                 0
+#define CH_CFG_MEMCORE_SIZE                 (3 * 1024)
 #endif
 
 /**
@@ -389,7 +389,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_OBJ_FIFOS)
-#define CH_CFG_USE_OBJ_FIFOS                TRUE
+#define CH_CFG_USE_OBJ_FIFOS                FALSE
 #endif
 
 /**
@@ -400,7 +400,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_PIPES)
-#define CH_CFG_USE_PIPES                    TRUE
+#define CH_CFG_USE_PIPES                    FALSE
 #endif
 
 /**
@@ -411,7 +411,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_OBJ_CACHES)
-#define CH_CFG_USE_OBJ_CACHES               TRUE
+#define CH_CFG_USE_OBJ_CACHES               FALSE
 #endif
 
 /**
@@ -422,7 +422,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_DELEGATES)
-#define CH_CFG_USE_DELEGATES                TRUE
+#define CH_CFG_USE_DELEGATES                FALSE
 #endif
 
 /**
@@ -433,7 +433,7 @@
  * @note    The default is @p TRUE.
  */
 #if !defined(CH_CFG_USE_JOBS)
-#define CH_CFG_USE_JOBS                     TRUE
+#define CH_CFG_USE_JOBS                     FALSE
 #endif
 
 /** @} */
@@ -453,7 +453,7 @@
  * @note    The default is @p FALSE.
  */
 #if !defined(CH_CFG_USE_FACTORY)
-#define CH_CFG_USE_FACTORY                  TRUE
+#define CH_CFG_USE_FACTORY                  FALSE
 #endif
 
 /**
@@ -469,42 +469,42 @@
  * @brief   Enables the registry of generic objects.
  */
 #if !defined(CH_CFG_FACTORY_OBJECTS_REGISTRY)
-#define CH_CFG_FACTORY_OBJECTS_REGISTRY     TRUE
+#define CH_CFG_FACTORY_OBJECTS_REGISTRY     FALSE
 #endif
 
 /**
  * @brief   Enables factory for generic buffers.
  */
 #if !defined(CH_CFG_FACTORY_GENERIC_BUFFERS)
-#define CH_CFG_FACTORY_GENERIC_BUFFERS      TRUE
+#define CH_CFG_FACTORY_GENERIC_BUFFERS      FALSE
 #endif
 
 /**
  * @brief   Enables factory for semaphores.
  */
 #if !defined(CH_CFG_FACTORY_SEMAPHORES)
-#define CH_CFG_FACTORY_SEMAPHORES           TRUE
+#define CH_CFG_FACTORY_SEMAPHORES           FALSE
 #endif
 
 /**
  * @brief   Enables factory for mailboxes.
  */
 #if !defined(CH_CFG_FACTORY_MAILBOXES)
-#define CH_CFG_FACTORY_MAILBOXES            TRUE
+#define CH_CFG_FACTORY_MAILBOXES            FALSE
 #endif
 
 /**
  * @brief   Enables factory for objects FIFOs.
  */
 #if !defined(CH_CFG_FACTORY_OBJ_FIFOS)
-#define CH_CFG_FACTORY_OBJ_FIFOS            TRUE
+#define CH_CFG_FACTORY_OBJ_FIFOS            FALSE
 #endif
 
 /**
  * @brief   Enables factory for Pipes.
  */
 #if !defined(CH_CFG_FACTORY_PIPES) || defined(__DOXYGEN__)
-#define CH_CFG_FACTORY_PIPES                TRUE
+#define CH_CFG_FACTORY_PIPES                FALSE
 #endif
 
 /** @} */
@@ -556,7 +556,7 @@
  * @note    The default is @p FALSE.
  */
 #if !defined(CH_DBG_ENABLE_ASSERTS)
-#define CH_DBG_ENABLE_ASSERTS               TRUE
+#define CH_DBG_ENABLE_ASSERTS               FALSE
 #endif
 
 /**
@@ -752,7 +752,7 @@
 /*===========================================================================*/
 
 // Enable syscall support
-#define PORT_USE_SYSCALL                    TRUE
+#define PORT_USE_SYSCALL                    FALSE
 
 #endif  /* CHCONF_H */
 

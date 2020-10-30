@@ -32,9 +32,8 @@
 #define MCUCONF_H
 
 #define STM32L4xx_MCUCONF
-//#define STM32L476_MCUCONF
-#define STM32L432_MCUCONF
-//#define STM32L433_MCUCONF
+#define STM32L476_MCUCONF
+//#define STM32L432_MCUCONF
 
 /*
  * HAL driver system settings.
