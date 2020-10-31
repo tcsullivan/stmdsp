@@ -143,7 +143,24 @@ void MainFrame::onCloseEvent(wxCloseEvent& event)
 
 void MainFrame::onMeasureTimer([[maybe_unused]] wxTimerEvent&)
 {
-    if (m_status_bar && m_device) {
+    if (m_conv_result_log != nullptr) {
+        static unsigned int counter = 0;
+        if (auto samples = m_device->continuous_read(); samples.size() > 0) {
+            for (auto& s : samples) {
+                auto str = wxString::Format("%u\n", s);
+                m_conv_result_log->Write(str.ToAscii(), str.Len());
+            }
+
+            counter++;
+        }
+
+        //if (counter == 20) {
+        //    m_conv_result_log->Close();
+        //    delete m_conv_result_log;
+        //    m_conv_result_log = nullptr;
+        //    counter = 0;
+        //}
+    } else if (m_status_bar && m_device) {
         m_status_bar->SetStatusText(wxString::Format(wxT("Execution time: %u cycles"),
                                                      m_device->continuous_start_get_measurement()));
     }
@@ -392,11 +409,18 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
 
     if (!m_is_running) {
         if (m_device != nullptr && m_device->connected()) {
+            if (m_conv_result_log != nullptr) {
+                m_conv_result_log->Close();
+                delete m_conv_result_log;
+            }
+            m_conv_result_log = new wxFileOutputStream("results.csv");
+
             if (m_run_measure && m_run_measure->IsChecked()) {
                 m_device->continuous_start_measure();
                 m_measure_timer->StartOnce(1000);
             } else {
                 m_device->continuous_start();
+                m_measure_timer->Start(15);
             }
 
             menuItem->SetItemLabel("&Stop");
@@ -407,6 +431,11 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
             m_status_bar->SetStatusText("Please connect.");
         }
     } else {
+        if (m_conv_result_log != nullptr) {
+            m_conv_result_log->Close();
+            delete m_conv_result_log;
+            m_conv_result_log = nullptr;
+        }
         m_device->continuous_stop();
 
         menuItem->SetItemLabel("&Start");

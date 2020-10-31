@@ -21,7 +21,7 @@
 
 constexpr unsigned int MAX_ELF_FILE_SIZE = 8 * 1024;
 constexpr unsigned int MAX_ERROR_QUEUE_SIZE = 8;
-constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 6000;
+constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 6000; // operate on buffers size this / 2
 constexpr unsigned int MAX_SIGGEN_BUFFER_SIZE = 3000;
 
 enum class RunStatus : char
@@ -78,6 +78,7 @@ static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, MAX_SAMPLE_BUFFER_S
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
 static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SAMPLE_BUFFER_SIZE)> dac_samples;
+static volatile const dacsample_t *dac_samples_new = nullptr;
 #if CACHE_LINE_SIZE > 0
 CC_ALIGN(CACHE_LINE_SIZE)
 #endif
@@ -265,7 +266,29 @@ void main_loop()
                     break;
 
                 case 's':
-                    usbserial::write(dac_samples.data(), dac_sample_count * sizeof(dacsample_t));
+                    if (dac_samples_new != nullptr) {
+                        unsigned char buf[2] = {
+                            static_cast<unsigned char>(dac_sample_count / 2 & 0xFF),
+                            static_cast<unsigned char>(((dac_sample_count / 2) >> 8) & 0xFF)
+                        };
+                        usbserial::write(buf, 2);
+                        unsigned int total = dac_sample_count / 2 * sizeof(dacsample_t);
+                        unsigned int offset = 0;
+                        unsigned char unused;
+                        auto samps = reinterpret_cast<const uint8_t *>(
+                            const_cast<const dacsample_t *>(dac_samples_new));
+                        while (total > 512) {
+                            usbserial::write(samps + offset, 512);
+                            while (usbserial::read(&unused, 1) == 0);
+                            offset += 512;
+                            total -= 512;
+                        }
+                        usbserial::write(samps + offset, total);
+                        while (usbserial::read(&unused, 1) == 0);
+                        dac_samples_new = nullptr;
+                    } else {
+                        usbserial::write("\0\0", 2);
+                    }
                     break;
 
                 case 'W':
@@ -281,7 +304,7 @@ void main_loop()
             }
         }
 
-		chThdSleepMilliseconds(1);
+		chThdSleepMicroseconds(100);
 	}
 }
 
@@ -308,12 +331,14 @@ THD_FUNCTION(conversionThread, arg)
                 if (!samples)
                     samples = &adc_samples[0];
                 std::copy(samples, samples + halfsize, &dac_samples[0]);
+                dac_samples_new = &dac_samples[0];
             } else if (message == MSG_CONVSECOND) {
                 if (elf_entry)
                     samples = elf_entry(&adc_samples[halfsize], halfsize);
                 if (!samples)
                     samples = &adc_samples[halfsize];
                 std::copy(samples, samples + halfsize, &dac_samples[dac_sample_count / 2]);
+                dac_samples_new = &dac_samples[dac_sample_count / 2];
             } else if (message == MSG_CONVFIRST_MEASURE) {
                 chTMStartMeasurementX(&conversion_time_measurement);
                 if (elf_entry)
@@ -322,6 +347,7 @@ THD_FUNCTION(conversionThread, arg)
                 if (!samples)
                     samples = &adc_samples[0];
                 std::copy(samples, samples + halfsize, &dac_samples[0]);
+                dac_samples_new = &dac_samples[0];
             } else if (message == MSG_CONVSECOND_MEASURE) {
                 chTMStartMeasurementX(&conversion_time_measurement);
                 if (elf_entry)
@@ -330,6 +356,7 @@ THD_FUNCTION(conversionThread, arg)
                 if (!samples)
                     samples = &adc_samples[halfsize];
                 std::copy(samples, samples + halfsize, &dac_samples[dac_sample_count / 2]);
+                dac_samples_new = &dac_samples[dac_sample_count / 2];
             }
         }
     }

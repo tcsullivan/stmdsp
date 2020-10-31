@@ -56,6 +56,7 @@ private:
     wxTimer *m_measure_timer = nullptr;
     wxStatusBar *m_status_bar = nullptr;
     wxMenuBar *m_menu_bar = nullptr;
+    wxFileOutputStream *m_conv_result_log = nullptr;
     wxString m_open_file_path;
     wxString m_temp_file_name;
 
