@@ -34,6 +34,7 @@ public:
 
     void onRunConnect(wxCommandEvent&);
     void onRunStart(wxCommandEvent&);
+    void onRunLogResults(wxCommandEvent&);
     void onRunUpload(wxCommandEvent&);
     void onRunUnload(wxCommandEvent&);
     void onRunEditBSize(wxCommandEvent&);
