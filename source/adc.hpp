@@ -19,33 +19,18 @@ namespace adc
     using operation_t = void (*)(adcsample_t *buffer, size_t count);
 
     enum class rate : unsigned int {
-        R3125 = 0,
-        R3750,
-        R6250,
-        R7500,
-        R12K5,
-        R15K,
-        R25K,
-        R30K,
-        R40K,
-        R50K,
-        R60K,
-        R80K,
+        R16K = 0,
+        R48K,
         R96K,
         R100K,
-        R120K,
-        R160K,
-        R200K,
-        R240K,
         R400K,
-        R480K,
-        R800K,
-        R960K,
-        R1M6
+        R1M,
+        R2M
     };
     
     void init();
     void set_rate(rate new_rate);
+    unsigned int get_rate();
     unsigned int get_gpt_divisor();
     adcsample_t *read(adcsample_t *buffer, size_t count);
     void read_start(operation_t operation_func, adcsample_t *buffer, size_t count);

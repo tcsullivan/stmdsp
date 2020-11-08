@@ -69,7 +69,7 @@
 #define STM32_PLLSAI1R_VALUE                4
 #define STM32_PLLSAI2N_VALUE                24
 #define STM32_PLLSAI2P_VALUE                7
-#define STM32_PLLSAI2R_VALUE                2
+#define STM32_PLLSAI2R_VALUE                8
 
 /*
  * Peripherals clock sources.
@@ -88,7 +88,7 @@
 #define STM32_SAI1SEL                       STM32_SAI1SEL_OFF
 #define STM32_SAI2SEL                       STM32_SAI2SEL_OFF
 #define STM32_CLK48SEL                      STM32_CLK48SEL_PLLSAI1
-#define STM32_ADCSEL                        STM32_ADCSEL_PLLSAI1
+#define STM32_ADCSEL                        STM32_ADCSEL_PLLSAI2
 #define STM32_SWPMI1SEL                     STM32_SWPMI1SEL_PCLK1
 #define STM32_DFSDMSEL                      STM32_DFSDMSEL_PCLK2
 #define STM32_RTCSEL                        STM32_RTCSEL_LSI

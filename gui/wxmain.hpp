@@ -38,9 +38,10 @@ public:
     void onRunUpload(wxCommandEvent&);
     void onRunUnload(wxCommandEvent&);
     void onRunEditBSize(wxCommandEvent&);
-    void onRunEditSRate(wxCommandEvent&);
     void onRunGenUpload(wxCommandEvent&);
     void onRunGenStart(wxCommandEvent&);
+
+    void onToolbarSampleRate(wxCommandEvent&);
 
     void onRunCompile(wxCommandEvent&);
     void onCodeDisassemble(wxCommandEvent&);
@@ -57,6 +58,7 @@ private:
     wxTimer *m_measure_timer = nullptr;
     wxStatusBar *m_status_bar = nullptr;
     wxMenuBar *m_menu_bar = nullptr;
+    wxComboBox *m_rate_select = nullptr;
     wxFileOutputStream *m_conv_result_log = nullptr;
     wxString m_open_file_path;
     wxString m_temp_file_name;

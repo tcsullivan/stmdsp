@@ -38,36 +38,23 @@ static ADCConversionGroup adc_group_config = {
 };
 
 constexpr static const GPTConfig gpt_config = {
-    .frequency = 14400000,
+    .frequency = 36000000,
     .callback = nullptr,
     .cr2 = TIM_CR2_MMS_1, /* TRGO */
     .dier = 0
 };
 
+#define ADC_CCR_PRESC_DIV1 (0)
+#define ADC_SAMPLE_RATE_SETTINGS_COUNT (7)
 static uint32_t adc_sample_rate_settings[] = {
-    10, ADC_SMPR_SMP_47P5, 4608, // 3125
-    11, ADC_SMPR_SMP_12P5, 3840, // 3750
-    9,  ADC_SMPR_SMP_47P5, 2304, // 6250
-    10, ADC_SMPR_SMP_12P5, 1920, // 7500
-    8,  ADC_SMPR_SMP_47P5, 1152, // 12K5
-    9,  ADC_SMPR_SMP_12P5, 960,  // 15K
-    7,  ADC_SMPR_SMP_47P5, 576,  // 25K
-    8,  ADC_SMPR_SMP_12P5, 480,  // 30K
-    5,  ADC_SMPR_SMP_47P5, 360,  // 40K
-    4,  ADC_SMPR_SMP_47P5, 288,  // 50K
-    7,  ADC_SMPR_SMP_12P5, 240,  // 60K
-    6,  ADC_SMPR_SMP_12P5, 180,  // 80K
-    5,  ADC_SMPR_SMP_12P5, 150,  // 96K
-    2,  ADC_SMPR_SMP_47P5, 144,  // 100K
-    4,  ADC_SMPR_SMP_12P5, 120,  // 120K
-    3,  ADC_SMPR_SMP_12P5, 90,   // 160K
-    1,  ADC_SMPR_SMP_47P5, 72,   // 200K
-    2,  ADC_SMPR_SMP_12P5, 60,   // 240K
-    0,  ADC_SMPR_SMP_47P5, 36,   // 400K
-    1,  ADC_SMPR_SMP_12P5, 30,   // 480K
-    1,  ADC_SMPR_SMP_2P5,  18,   // 800K
-    0,  ADC_SMPR_SMP_12P5, 15,   // 960K
-    0,  ADC_SMPR_SMP_2P5,  9     // 1M6
+    // Rate    PLLSAI2N  ADC_PRESC            ADC_SMPR           GPT_DIV
+    /* 16k  */ 8,        ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 2250,
+    /* 48k  */ 24,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 750,
+    /* 96k  */ 48,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 375,
+    /* 100k */ 40,       ADC_CCR_PRESC_DIV8,  ADC_SMPR_SMP_12P5, 360,
+    /* 400k */ 40,       ADC_CCR_PRESC_DIV2,  ADC_SMPR_SMP_12P5, 90,
+    /* 1M   */ 38,       ADC_CCR_PRESC_DIV1,  ADC_SMPR_SMP_6P5,  36,
+    /* 2M   */ 76,       ADC_CCR_PRESC_DIV1,  ADC_SMPR_SMP_6P5,  18
 };
 
 static bool adc_is_read_finished = false;
@@ -92,16 +79,34 @@ namespace adc
     void set_rate(rate new_rate)
     {
         auto index = static_cast<unsigned int>(new_rate);
-        auto presc = adc_sample_rate_settings[index * 3] << 18;
-        auto smp = adc_sample_rate_settings[index * 3 + 1];
-        adc_gpt_divisor = adc_sample_rate_settings[index * 3 + 2];
+        auto plln = adc_sample_rate_settings[index * 4] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos;
+        auto presc = adc_sample_rate_settings[index * 4 + 1] << ADC_CCR_PRESC_Pos;
+        auto smp = adc_sample_rate_settings[index * 4 + 2];
+        adc_gpt_divisor = adc_sample_rate_settings[index * 4 + 3];
     
         adcStop(adcd);
+
+        // Adjust PLLSAI2
+        RCC->CR &= ~(RCC_CR_PLLSAI2ON);
+        while ((RCC->CR & RCC_CR_PLLSAI2RDY) == RCC_CR_PLLSAI2RDY);
+        RCC->PLLSAI2CFGR = (RCC->PLLSAI2CFGR & ~(RCC_PLLSAI2CFGR_PLLSAI2N_Msk)) | plln;
+        RCC->CR |= RCC_CR_PLLSAI2ON;
+
         // Set ADC prescaler
-        adcd->adcc->CCR = (adcd->adcc->CCR & ~(0xF << 18)) | presc;
+        adcd->adcc->CCR = (adcd->adcc->CCR & ~(ADC_CCR_PRESC_Msk)) | presc;
         // Set sampling time
         adc_group_config.smpr[0] = ADC_SMPR1_SMP_AN5(smp);
         adcStart(adcd, &adc_config);
+    }
+    
+    unsigned int get_rate()
+    {
+        for (unsigned int i = 0; i < ADC_SAMPLE_RATE_SETTINGS_COUNT; i++) {
+            if (adc_gpt_divisor == adc_sample_rate_settings[i * 3 + 3])
+                return i;
+        }
+
+        return 0xFF;
     }
 
     unsigned int get_gpt_divisor()

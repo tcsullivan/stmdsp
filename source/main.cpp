@@ -250,10 +250,16 @@ void main_loop()
                     break;
 
                 case 'r':
-                    if (usbserial::read(&cmd[1], 1) == 1)
-                        adc::set_rate(static_cast<adc::rate>(cmd[1]));
-                    else
+                    if (usbserial::read(&cmd[1], 1) == 1) {
+                        if (cmd[1] == 0xFF) {
+                            unsigned char r = static_cast<unsigned char>(adc::get_rate());
+                            usbserial::write(&r, 1);
+                        } else {
+                            adc::set_rate(static_cast<adc::rate>(cmd[1]));
+                        }
+                    } else {
                         error_queue_add(Error::BadParamSize);
+                    }
                     break;
 
                 // 'S' - Stops the continuous sampling/conversion.
@@ -267,6 +273,10 @@ void main_loop()
 
                 case 's':
                     if (dac_samples_new != nullptr) {
+                        auto samps = reinterpret_cast<const uint8_t *>(
+                            const_cast<const dacsample_t *>(dac_samples_new));
+                        dac_samples_new = nullptr;
+
                         unsigned char buf[2] = {
                             static_cast<unsigned char>(dac_sample_count / 2 & 0xFF),
                             static_cast<unsigned char>(((dac_sample_count / 2) >> 8) & 0xFF)
@@ -275,8 +285,6 @@ void main_loop()
                         unsigned int total = dac_sample_count / 2 * sizeof(dacsample_t);
                         unsigned int offset = 0;
                         unsigned char unused;
-                        auto samps = reinterpret_cast<const uint8_t *>(
-                            const_cast<const dacsample_t *>(dac_samples_new));
                         while (total > 512) {
                             usbserial::write(samps + offset, 512);
                             while (usbserial::read(&unused, 1) == 0);
@@ -285,7 +293,6 @@ void main_loop()
                         }
                         usbserial::write(samps + offset, total);
                         while (usbserial::read(&unused, 1) == 0);
-                        dac_samples_new = nullptr;
                     } else {
                         usbserial::write("\0\0", 2);
                     }

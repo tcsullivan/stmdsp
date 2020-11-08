@@ -62,6 +62,20 @@ namespace stmdsp
         }
     }
 
+    unsigned int device::get_sample_rate() {
+        unsigned char result = 0xFF;
+
+        if (connected()) {
+            uint8_t request[2] = {
+                'r', 0xFF
+            };
+            m_serial.write(request, 2);
+            m_serial.read(&result, 1);
+        }
+
+        return result;
+    }
+
     void device::continuous_start() {
         if (connected())
             m_serial.write("R");

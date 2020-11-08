@@ -1,5 +1,6 @@
 #include "wxmain.hpp"
 
+#include <wx/combobox.h>
 #include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/filedlg.h>
@@ -40,8 +41,10 @@ enum Id {
 MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50), wxSize(640, 800))
 {
     auto splitter = new wxSplitterWindow(this, wxID_ANY);
+    auto panelToolbar = new wxPanel(this, wxID_ANY);
     auto panelCode = new wxPanel(splitter, wxID_ANY);
     auto panelOutput = new wxPanel(splitter, wxID_ANY);
+    auto sizerToolbar = new wxBoxSizer(wxHORIZONTAL);
     auto sizerCode = new wxBoxSizer(wxVERTICAL);
     auto sizerOutput = new wxBoxSizer(wxVERTICAL);
     auto sizerSplitter = new wxBoxSizer(wxVERTICAL);
@@ -51,7 +54,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
 
     // Member initialization
     m_status_bar = new wxStatusBar(this);
-    m_text_editor = new wxStyledTextCtrl(panelCode, wxID_ANY, wxDefaultPosition, wxSize(620, 500));
+    m_text_editor = new wxStyledTextCtrl(panelCode, wxID_ANY, wxDefaultPosition, wxSize(620, 440));
     m_compile_output = new wxTextCtrl(panelOutput, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                       wxSize(620, 250), wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL);
     m_measure_timer = new wxTimer(this, Id::MeasureTimer);
@@ -63,8 +66,30 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
     splitter->SetSashGravity(0.5);
     splitter->SetMinimumPaneSize(20);
 
+    auto comp = new wxButton(panelToolbar, Id::MCodeCompile, "Compile");
+    static const wxString srateValues[] = {
+        "16 kS/s",
+        "48 kS/s",
+        "96 kS/s",
+        "100 kS/s",
+        "200 kS/s",
+        "1 MS/s",
+        "2 MS/s"
+    };
+    m_rate_select = new wxComboBox(panelToolbar, wxID_ANY,
+                                   wxEmptyString, wxDefaultPosition, wxDefaultSize,
+                                   7, srateValues, wxCB_READONLY);
+    m_rate_select->Disable();
+
+    sizerToolbar->Add(comp, 0, wxLEFT, 4);
+    sizerToolbar->Add(m_rate_select, 0, wxLEFT, 12);
+    panelToolbar->SetSizer(sizerToolbar);
+    Bind(wxEVT_BUTTON, &MainFrame::onRunCompile, this, Id::MCodeCompile, wxID_ANY, comp);
+    Bind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY, wxID_ANY, m_rate_select);
+
     prepareEditor();
-    sizerCode->Add(m_text_editor, 1, wxEXPAND | wxALL, 0);
+    sizerCode->Add(panelToolbar, 0, wxTOP | wxBOTTOM, 4);
+    sizerCode->Add(m_text_editor, 1, wxEXPAND, 0);
     panelCode->SetSizer(sizerCode);
 
     m_compile_output->SetBackgroundColour(wxColour(0, 0, 0));
@@ -72,7 +97,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
     sizerOutput->Add(m_compile_output, 1, wxEXPAND | wxALL, 0);
     panelOutput->SetSizer(sizerOutput);
 
-    splitter->SplitHorizontally(panelCode, panelOutput, 500);
+    splitter->SplitHorizontally(panelCode, panelOutput, 440);
 
     sizerSplitter->Add(splitter, 1, wxEXPAND, 5);
     SetSizer(sizerSplitter);
@@ -110,8 +135,6 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
          menuRun->Append(MRunUnload, "U&nload code"));
     Bind(wxEVT_MENU, &MainFrame::onRunEditBSize, this, Id::MRunEditBSize, wxID_ANY,
          menuRun->Append(MRunEditBSize, "Set &buffer size..."));
-    Bind(wxEVT_MENU, &MainFrame::onRunEditSRate, this, Id::MRunEditSRate, wxID_ANY,
-         menuRun->Append(MRunEditSRate, "Set sample &rate..."));
 
     menuRun->AppendSeparator();
     Bind(wxEVT_MENU, &MainFrame::onRunGenUpload, this, Id::MRunGenUpload, wxID_ANY,
@@ -210,6 +233,7 @@ all:
                            --remove-section .comment \
                            --remove-section .noinit \
                            $0.o
+	arm-none-eabi-size $0.o
 )make";
 
 static wxString file_header (R"cpp(
@@ -257,11 +281,9 @@ wxString MainFrame::compileEditorCode()
 
     if (result == 0) {
         m_status_bar->SetStatusText("Compilation succeeded.");
-        m_compile_output->ChangeValue("");
         return m_temp_file_name + ".o";
     } else {
         m_status_bar->SetStatusText("Compilation failed.");
-        m_compile_output->LoadFile(make_output);
         return "";
     }
 }
@@ -294,6 +316,7 @@ void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
                 m_open_file_path = openDialog.GetPath();
                 m_text_editor->SetText(buffer);
                 m_text_editor->DiscardEdits();
+                m_compile_output->ChangeValue("");
                 m_status_bar->SetStatusText("Ready.");
             }
             delete[] buffer;
@@ -377,11 +400,17 @@ void MainFrame::onRunConnect(wxCommandEvent& ce)
         if (auto devices = scanner.scan(); devices.size() > 0) {
             m_device = new stmdsp::device(devices.front());
             if (m_device->connected()) {
+                auto rate = m_device->get_sample_rate();
+                m_rate_select->SetSelection(rate);
+                m_rate_select->Enable();
+
                 menuItem->SetItemLabel("&Disconnect");
                 m_status_bar->SetStatusText("Connected.");
             } else {
                 delete m_device;
                 m_device = nullptr;
+
+                m_rate_select->Disable();
                 menuItem->SetItemLabel("&Connect");
                 m_status_bar->SetStatusText("Failed to connect.");
             }
@@ -478,27 +507,12 @@ void MainFrame::onRunEditBSize([[maybe_unused]] wxCommandEvent&)
     }
 }
 
-void MainFrame::onRunEditSRate([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onToolbarSampleRate(wxCommandEvent& ce)
 {
     if (m_device != nullptr && m_device->connected()) {
-        wxTextEntryDialog dialog (this, "Enter new sample rate id:", "Set Sample Rate");
-        if (dialog.ShowModal() == wxID_OK) {
-            if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
-                if (unsigned long n; value.ToULong(&n)) {
-                    if (n < 20) {
-                        m_device->set_sample_rate(n);
-                    } else {
-                        m_status_bar->SetStatusText("Error: Invalid sample rate.");
-                    }
-                } else {
-                    m_status_bar->SetStatusText("Error: Invalid sample rate.");
-                }
-            } else {
-                m_status_bar->SetStatusText("Ready.");
-            }
-        } else {
-            m_status_bar->SetStatusText("Ready.");
-        }
+        auto combo = dynamic_cast<wxComboBox *>(ce.GetEventUserData());
+        m_device->set_sample_rate(combo->GetCurrentSelection());
+        m_status_bar->SetStatusText("Ready.");
     } else {
         wxMessageBox("No device connected!", "Run", wxICON_WARNING);
         m_status_bar->SetStatusText("Please connect.");

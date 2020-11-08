@@ -45,6 +45,7 @@ namespace stmdsp
 
         void continuous_set_buffer_size(unsigned int size);
         void set_sample_rate(unsigned int id);
+        unsigned int get_sample_rate();
         void continuous_start();
         void continuous_start_measure();
         uint32_t continuous_start_get_measurement();
