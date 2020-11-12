@@ -12,16 +12,21 @@
 #ifndef STMDSP_USBSERIAL_HPP_
 #define STMDSP_USBSERIAL_HPP_
 
-#include "hal.h"
+#include "usbcfg.h"
 
-namespace usbserial
+class USBSerial
 {
-    void init();
-    bool is_active();
+public:
+    static void begin();
 
-    size_t read(void *buffer, size_t count);
-    size_t write(const void *buffer, size_t count);
-}
+    static bool isActive();
+
+    static size_t read(unsigned char *buffer, size_t count);
+    static size_t write(const unsigned char *buffer, size_t count);
+
+private:
+    static SerialUSBDriver *m_driver;
+};
 
 #endif // STMDSP_USBSERIAL_HPP_
 

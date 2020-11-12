@@ -11,42 +11,42 @@
 
 #include "usbserial.hpp"
 
-#include "usbcfg.h"
+SerialUSBDriver *USBSerial::m_driver = &SDU1;
 
-constexpr static const auto sdud = &SDU1;
-
-namespace usbserial
+void USBSerial::begin()
 {
-    void init()
-    {
-        palSetPadMode(GPIOA, 11, PAL_MODE_ALTERNATE(10));
-        palSetPadMode(GPIOA, 12, PAL_MODE_ALTERNATE(10));
-    
-        sduObjectInit(sdud);
-        sduStart(sdud, &serusbcfg);
-    
-        // Reconnect bus so device can re-enumerate on reset
-        usbDisconnectBus(serusbcfg.usbp);
-        chThdSleepMilliseconds(1500);
-        usbStart(serusbcfg.usbp, &usbcfg);
-        usbConnectBus(serusbcfg.usbp);
+    palSetPadMode(GPIOA, 11, PAL_MODE_ALTERNATE(10));
+    palSetPadMode(GPIOA, 12, PAL_MODE_ALTERNATE(10));
+
+    sduObjectInit(m_driver);
+    sduStart(m_driver, &serusbcfg);
+
+    // Reconnect bus so device can re-enumerate on reset
+    usbDisconnectBus(serusbcfg.usbp);
+    chThdSleepMilliseconds(1500);
+    usbStart(serusbcfg.usbp, &usbcfg);
+    usbConnectBus(serusbcfg.usbp);
+}
+
+bool USBSerial::isActive()
+{
+    if (auto config = m_driver->config; config != nullptr) {
+        if (auto usbp = config->usbp; usbp != nullptr)
+            return usbp->state == USB_ACTIVE;
     }
-    
-    bool is_active()
-    {
-        return sdud->config->usbp->state == USB_ACTIVE;
-    }
-    
-    size_t read(void *buffer, size_t count)
-    {
-        auto bss = reinterpret_cast<BaseSequentialStream *>(sdud);
-        return streamRead(bss, static_cast<uint8_t *>(buffer), count);
-    }
-    
-    size_t write(const void *buffer, size_t count)
-    {
-        auto bss = reinterpret_cast<BaseSequentialStream *>(sdud);
-        return streamWrite(bss, static_cast<const uint8_t *>(buffer), count);
-    }
+
+    return false;
+}
+
+size_t USBSerial::read(unsigned char *buffer, size_t count)
+{
+    auto bss = reinterpret_cast<BaseSequentialStream *>(m_driver);
+    return streamRead(bss, buffer, count);
+}
+
+size_t USBSerial::write(const unsigned char *buffer, size_t count)
+{
+    auto bss = reinterpret_cast<BaseSequentialStream *>(m_driver);
+    return streamWrite(bss, buffer, count);
 }
 

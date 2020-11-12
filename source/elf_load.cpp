@@ -23,9 +23,9 @@ constexpr static auto ptr_from_offset(void *base, uint32_t offset)
     return reinterpret_cast<T>(reinterpret_cast<uint8_t *>(base) + offset);
 }
 
-namespace elf {
+namespace ELF {
 
-entry_t load(void *elf_data)
+Entry load(void *elf_data)
 {
     // Check the ELF's header signature
     auto ehdr = reinterpret_cast<Elf32_Ehdr *>(elf_data);
@@ -54,8 +54,8 @@ entry_t load(void *elf_data)
     }
 
 
-    return loaded ? reinterpret_cast<entry_t>(ehdr->e_entry) : nullptr;
+    return loaded ? reinterpret_cast<Entry>(ehdr->e_entry) : nullptr;
 }
 
-} // namespace elf
+} // namespace ELF
 

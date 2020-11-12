@@ -13,13 +13,25 @@
 #define STMDSP_DAC_HPP_
 
 #include "hal.h"
+#undef DAC
 
-namespace dac
+class DAC
 {
-    void init();
-    void write_start(unsigned int channel, dacsample_t *buffer, size_t count);
-    void write_stop(unsigned int channel);
-}
+public:
+    static void begin();
+
+    static void start(int channel, dacsample_t *buffer, size_t count);
+    static void stop(int channel);
+
+private:
+    static DACDriver *m_driver[2];
+    static GPTDriver *m_timer;
+    static int m_timer_user_count;
+
+    static const DACConfig m_config;
+    static const DACConversionGroup m_group_config;
+    static const GPTConfig m_timer_config;
+};
 
 #endif // STMDSP_DAC_HPP_
 

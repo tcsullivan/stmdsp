@@ -14,29 +14,52 @@
 
 #include "hal.h"
 
-namespace adc
-{
-    using operation_t = void (*)(adcsample_t *buffer, size_t count);
+#include <array>
 
-    enum class rate : unsigned int {
+class ADC
+{
+public:
+    using Operation = void (*)(adcsample_t *buffer, size_t count);
+
+    enum class Rate : int {
+        //R8K = 0,
         R16K = 0,
+        R20K,
+        R32K,
         R48K,
-        R96K,
-        R100K,
-        R400K,
-        R1M,
-        R2M
+        R60K,
+        R96K
     };
     
-    void init();
-    void set_rate(rate new_rate);
-    unsigned int get_rate();
-    unsigned int get_gpt_divisor();
-    adcsample_t *read(adcsample_t *buffer, size_t count);
-    void read_start(operation_t operation_func, adcsample_t *buffer, size_t count);
-    void read_set_operation_func(operation_t operation_func);
-    void read_stop();
-}
+    static void begin();
+
+    static void start(adcsample_t *buffer, size_t count, Operation operation);
+    static void stop();
+
+    static void setRate(Rate rate);
+    static void setOperation(Operation operation);
+
+    static int getRate();
+    static unsigned int getTimerDivisor();
+
+private:
+    static ADCDriver *m_driver;
+    static GPTDriver *m_timer;
+
+    static const ADCConfig m_config;
+    static /*const*/ ADCConversionGroup m_group_config;
+    static const GPTConfig m_timer_config;
+
+    static std::array<std::array<uint32_t, 4>, 6> m_rate_presets;
+
+    static adcsample_t *m_current_buffer;
+    static size_t m_current_buffer_size;
+    static Operation m_operation;
+
+    static unsigned int m_timer_divisor;
+
+    static void conversionCallback(ADCDriver *);
+};
 
 #endif // STMDSP_ADC_HPP_
 

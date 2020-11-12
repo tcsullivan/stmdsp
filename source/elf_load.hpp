@@ -15,11 +15,11 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace elf
+namespace ELF
 {
-    using entry_t = uint16_t *(*)(uint16_t *, size_t);
+    using Entry = uint16_t *(*)(uint16_t *, size_t);
 
-    entry_t load(void *elf_data);
+    Entry load(void *elf_data);
 }
 
 #endif // ELF_LOAD_HPP_

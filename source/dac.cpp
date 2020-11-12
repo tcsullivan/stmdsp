@@ -9,67 +9,63 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "adc.hpp"
+#include "adc.hpp" // ADC::getTimerDivisor
 #include "dac.hpp"
 
-constexpr static const auto dacd = &DACD1;
-constexpr static const auto dacd2 = &DACD2;
-constexpr static const auto gptd = &GPTD7;
+DACDriver *DAC::m_driver[2] = {
+    &DACD1, &DACD2
+};
+GPTDriver *DAC::m_timer = &GPTD7;
+int DAC::m_timer_user_count = 0;
 
-constexpr static const DACConfig dac_config = {
+const DACConfig DAC::m_config = {
     .init = 0,
     .datamode = DAC_DHRM_12BIT_RIGHT,
     .cr = 0
 };
 
-constexpr static const DACConversionGroup dac_group_config = {
-  .num_channels = 1,
-  .end_cb = nullptr,
-  .error_cb = nullptr,
-  .trigger = DAC_TRG(2)
+const DACConversionGroup DAC::m_group_config = {
+    .num_channels = 1,
+    .end_cb = nullptr,
+    .error_cb = nullptr,
+    .trigger = DAC_TRG(2)
 };
 
-constexpr static const GPTConfig gpt_config = {
-  .frequency = 36000000,
-  .callback = nullptr,
-  .cr2 = TIM_CR2_MMS_1, /* TRGO */
-  .dier = 0
+const GPTConfig DAC::m_timer_config = {
+    .frequency = 36000000,
+    .callback = nullptr,
+    .cr2 = TIM_CR2_MMS_1, /* TRGO */
+    .dier = 0
 };
 
-static unsigned int dacs_running = 0;
-
-namespace dac
+void DAC::begin()
 {
-    void init()
-    {
-        palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
-        palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
-    
-        dacStart(dacd, &dac_config);
-        dacStart(dacd2, &dac_config);
-        gptStart(gptd, &gpt_config);
+    palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
+    palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
+
+    dacStart(m_driver[0], &m_config);
+    dacStart(m_driver[1], &m_config);
+    gptStart(m_timer, &m_timer_config);
+}
+
+void DAC::start(int channel, dacsample_t *buffer, size_t count)
+{
+    if (channel >= 0 && channel < 2) {
+        dacStartConversion(m_driver[channel], &m_group_config, buffer, count);
+
+        if (m_timer_user_count == 0)
+            gptStartContinuous(m_timer, ADC::getTimerDivisor());
+        m_timer_user_count++;
     }
+}
 
-    void write_start(unsigned int channel, dacsample_t *buffer, size_t count)
-    {
-        if (channel < 2) {
-            dacStartConversion(channel == 0 ? dacd : dacd2, &dac_group_config, buffer, count);
+void DAC::stop(int channel)
+{
+    if (channel >= 0 && channel < 2) {
+        dacStopConversion(m_driver[channel]);
 
-            if (dacs_running == 0)
-                gptStartContinuous(gptd, adc::get_gpt_divisor());
-            dacs_running |= 1 << channel;
-        }
-    }
-    
-    void write_stop(unsigned int channel)
-    {
-        if (channel < 2) {
-            dacStopConversion(channel == 0 ? dacd : dacd2);
-
-            dacs_running &= ~(1 << channel);
-            if (dacs_running == 0)
-                gptStopTimer(gptd);
-        }
+        if (--m_timer_user_count == 0)
+            gptStopTimer(m_timer);
     }
 }
 

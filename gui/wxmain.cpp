@@ -69,16 +69,15 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
     auto comp = new wxButton(panelToolbar, Id::MCodeCompile, "Compile");
     static const wxString srateValues[] = {
         "16 kS/s",
+        "20 kS/s",
+        "32 kS/s",
         "48 kS/s",
-        "96 kS/s",
-        "100 kS/s",
-        "200 kS/s",
-        "1 MS/s",
-        "2 MS/s"
+        "60 kS/s",
+        "96 kS/s"
     };
     m_rate_select = new wxComboBox(panelToolbar, wxID_ANY,
                                    wxEmptyString, wxDefaultPosition, wxDefaultSize,
-                                   7, srateValues, wxCB_READONLY);
+                                   6, srateValues, wxCB_READONLY);
     m_rate_select->Disable();
 
     sizerToolbar->Add(comp, 0, wxLEFT, 4);
@@ -410,7 +409,6 @@ void MainFrame::onRunConnect(wxCommandEvent& ce)
                 delete m_device;
                 m_device = nullptr;
 
-                m_rate_select->Disable();
                 menuItem->SetItemLabel("&Connect");
                 m_status_bar->SetStatusText("Failed to connect.");
             }
@@ -420,6 +418,7 @@ void MainFrame::onRunConnect(wxCommandEvent& ce)
     } else {
         delete m_device;
         m_device = nullptr;
+        m_rate_select->Disable();
         menuItem->SetItemLabel("&Connect");
         m_status_bar->SetStatusText("Disconnected.");
     }
