@@ -239,7 +239,7 @@ static wxString file_header (R"cpp(
 #include <cstdint>
 
 using adcsample_t = uint16_t;
-constexpr unsigned int SIZE = 4000;
+constexpr unsigned int SIZE = 3000;
 
 adcsample_t *process_data(adcsample_t *samples, unsigned int size);
 
@@ -482,7 +482,7 @@ void MainFrame::onRunLogResults(wxCommandEvent& ce)
 void MainFrame::onRunEditBSize([[maybe_unused]] wxCommandEvent&)
 {
     if (m_device != nullptr && m_device->connected()) {
-        wxTextEntryDialog dialog (this, "Enter new buffer size (100-4000)", "Set Buffer Size");
+        wxTextEntryDialog dialog (this, "Enter new buffer size (100-3000)", "Set Buffer Size");
         if (dialog.ShowModal() == wxID_OK) {
             if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
                 if (unsigned long n; value.ToULong(&n)) {
