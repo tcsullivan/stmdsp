@@ -23,8 +23,8 @@ ADCConversionGroup ADC::m_group_config = {
     .num_channels = 1,
     .end_cb = ADC::conversionCallback,
     .error_cb = nullptr,
-    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM4_TRGO */
-    .cfgr2 = 0,//ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
+    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
+    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
     .tr1 = ADC_TR(0, 4095),
     .smpr = {
         ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5), 0
@@ -43,13 +43,13 @@ const GPTConfig ADC::m_timer_config = {
 };
 
 std::array<std::array<uint32_t, 4>, 6> ADC::m_rate_presets = {{
-     // Rate    PLLSAI2N  ADC_PRESC            ADC_SMPR           GPT_DIV
-    {/* 16k  */ 8,        ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 2250},
-    {/* 20k  */ 10,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 1800},
-    {/* 32k  */ 16,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 1125},
-    {/* 48k  */ 24,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 750},
-    {/* 60k  */ 30,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 600},
-    {/* 96k  */ 48,       ADC_CCR_PRESC_DIV10, ADC_SMPR_SMP_12P5, 375}
+     // Rate   PLLSAI2N  R  OVERSAMPLE 2x?  GPT_DIV
+    {/* 8k  */ 16,       3, 1,              4500},
+    {/* 16k */ 32,       3, 1,              2250},
+    {/* 20k */ 40,       3, 1,              1800},
+    {/* 32k */ 64,       3, 1,              1125},
+    {/* 48k */ 24,       3, 0,               750},
+    {/* 96k */ 48,       3, 0,               375}
 }};
 
 adcsample_t *ADC::m_current_buffer = nullptr;
@@ -66,7 +66,7 @@ void ADC::begin()
     adcSTM32EnableVREF(m_driver);
     gptStart(m_timer, &m_timer_config);
 
-    setRate(Rate::R96K);
+    setRate(Rate::R32K);
 }
 
 void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
@@ -92,9 +92,9 @@ void ADC::stop()
 void ADC::setRate(ADC::Rate rate)
 {
     auto& preset = m_rate_presets[static_cast<int>(rate)];
-    auto plln = preset[0] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos;
-    auto presc = preset[1] << ADC_CCR_PRESC_Pos;
-    auto smp = preset[2];
+    auto pllnr = (preset[0] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos) |
+                 (preset[1] << RCC_PLLSAI2CFGR_PLLSAI2R_Pos);
+    bool oversample = preset[2] != 0;
     m_timer_divisor = preset[3];
 
     adcStop(m_driver);
@@ -102,12 +102,12 @@ void ADC::setRate(ADC::Rate rate)
     // Adjust PLLSAI2
     RCC->CR &= ~(RCC_CR_PLLSAI2ON);
     while ((RCC->CR & RCC_CR_PLLSAI2RDY) == RCC_CR_PLLSAI2RDY);
-    RCC->PLLSAI2CFGR = (RCC->PLLSAI2CFGR & ~(RCC_PLLSAI2CFGR_PLLSAI2N_Msk)) | plln;
+    RCC->PLLSAI2CFGR = (RCC->PLLSAI2CFGR & ~(RCC_PLLSAI2CFGR_PLLSAI2N_Msk | RCC_PLLSAI2CFGR_PLLSAI2R_Msk)) | pllnr;
     RCC->CR |= RCC_CR_PLLSAI2ON;
-    // Set ADC prescaler
-    m_driver->adcc->CCR = (m_driver->adcc->CCR & ~(ADC_CCR_PRESC_Msk)) | presc;
-    // Set sampling time
-    m_group_config.smpr[0] = ADC_SMPR1_SMP_AN5(smp);
+    while ((RCC->CR & RCC_CR_PLLSAI2RDY) != RCC_CR_PLLSAI2RDY);
+
+    // Set 2x oversampling
+    m_group_config.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
 
     adcStart(m_driver, &m_config);
 }

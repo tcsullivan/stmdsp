@@ -22,12 +22,11 @@ public:
     using Operation = void (*)(adcsample_t *buffer, size_t count);
 
     enum class Rate : int {
-        //R8K = 0,
-        R16K = 0,
+        R8K = 0,
+        R16K,
         R20K,
         R32K,
         R48K,
-        R60K,
         R96K
     };
     

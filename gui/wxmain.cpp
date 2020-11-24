@@ -68,11 +68,11 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
 
     auto comp = new wxButton(panelToolbar, Id::MCodeCompile, "Compile");
     static const wxString srateValues[] = {
+        "8 kS/s",
         "16 kS/s",
         "20 kS/s",
         "32 kS/s",
         "48 kS/s",
-        "60 kS/s",
         "96 kS/s"
     };
     m_rate_select = new wxComboBox(panelToolbar, wxID_ANY,
