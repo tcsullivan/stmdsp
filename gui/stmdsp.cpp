@@ -1,3 +1,14 @@
+/**
+ * @file stmdsp.cpp
+ * @brief Interface for communication with stmdsp device over serial.
+ *
+ * Copyright (C) 2021 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "stmdsp.hpp"
 
 #include <serial/serial.h>

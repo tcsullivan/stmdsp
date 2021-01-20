@@ -1,3 +1,14 @@
+/**
+ * @file wxapp.hpp
+ * @brief Main application object for the stmdsp gui.
+ *
+ * Copyright (C) 2021 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #ifndef WXAPP_HPP_
 #define WXAPP_HPP_
 
