@@ -1,11 +1,11 @@
 #include <array>
 #include <cstdint>
 
-//#define ENABLE_SIGGEN
-
-constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 4000;
-
 using Sample = uint16_t;
+
+// gives 8000
+constexpr unsigned int MAX_SAMPLE_BUFFER_BYTESIZE = 16384;
+constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = MAX_SAMPLE_BUFFER_BYTESIZE / sizeof(Sample);
 
 class SampleBuffer
 {
@@ -14,12 +14,6 @@ public:
         m_buffer(buffer) {}
 
     void clear() {
-        /*static const Sample ref[21] = {
-            100, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800,
-            2000, 2200, 2400, 2600, 2800, 3000, 3200, 3400, 3600, 3800, 4095
-        };
-        for (unsigned int i = 0; i < m_size; i++)
-            m_buffer[i] = ref[i % 21];*/
         std::fill(m_buffer, m_buffer + m_size, 2048);
     }
     void modify(Sample *data, unsigned int srcsize) {
@@ -60,7 +54,6 @@ public:
     }
 
 private:
-    //std::array<Sample, MAX_SAMPLE_BUFFER_SIZE> m_buffer;
     Sample *m_buffer = nullptr;
     unsigned int m_size = MAX_SAMPLE_BUFFER_SIZE;
     Sample *m_modified = nullptr;

@@ -24,7 +24,7 @@ ADCConversionGroup ADC::m_group_config = {
     .end_cb = ADC::conversionCallback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
-    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
+    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
     .ccr = 0,
     .pcsel = 0,
     .ltr1 = 0, .htr1 = 0x0FFF,

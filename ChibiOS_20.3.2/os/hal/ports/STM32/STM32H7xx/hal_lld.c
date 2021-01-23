@@ -168,11 +168,14 @@ void hal_lld_init(void) {
 
   /* MPU initialization.*/
 #if (STM32_NOCACHE_SRAM1_SRAM2 == TRUE) || (STM32_NOCACHE_SRAM3 == TRUE) || \
-    (STM32_NOCACHE_SRAM4 == TRUE)
+    (STM32_NOCACHE_ALLSRAM == TRUE)
   {
     uint32_t base, size;
 
-#if (STM32_NOCACHE_SRAM1_SRAM2 == TRUE) && (STM32_NOCACHE_SRAM3 == TRUE)
+#if (STM32_NOCACHE_ALLSRAM == TRUE)
+    base = 0x30000000U;
+    size = MPU_RASR_SIZE_256M;
+#elif (STM32_NOCACHE_SRAM1_SRAM2 == TRUE) && (STM32_NOCACHE_SRAM3 == TRUE)
     base = 0x30000000U;
     size = MPU_RASR_SIZE_512K;
 #elif (STM32_NOCACHE_SRAM1_SRAM2 == TRUE) && (STM32_NOCACHE_SRAM3 == FALSE)
@@ -180,9 +183,6 @@ void hal_lld_init(void) {
     size = MPU_RASR_SIZE_256K;
 #elif (STM32_NOCACHE_SRAM1_SRAM2 == FALSE) && (STM32_NOCACHE_SRAM3 == TRUE)
     base = 0x30040000U;
-    size = MPU_RASR_SIZE_16K;
-#elif (STM32_NOCACHE_SRAM4 == TRUE)
-    base = 0x38000000U;
     size = MPU_RASR_SIZE_16K;
 #else
 #error "invalid constants used in mcuconf.h"

@@ -53,11 +53,9 @@ static time_measurement_t conversion_time_measurement;
 
 static ErrorManager EM;
 
-static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000));
-static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x38002000));
-#ifdef ENABLE_SIGGEN
-static SampleBuffer samplesSigGen;
-#endif
+static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000)); // 16k
+static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x30004000)); // 16k
+static SampleBuffer samplesSigGen (reinterpret_cast<Sample *>(0x30000000)); // 16k
 
 static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 static ELF::Entry elf_entry = nullptr;
@@ -75,8 +73,6 @@ int main()
     halInit();
     chSysInit();
 
-    //SCB_DisableDCache();
-
     // Enable FPU
     SCB->CPACR |= 0xF << 20;
 
@@ -88,10 +84,8 @@ int main()
     SClock::setRate(SClock::Rate::R32K);
     ADC::setRate(SClock::Rate::R32K);
 
-    // Start the conversion manager thread
     chTMObjectInit(&conversion_time_measurement);
-    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1,
-                      nullptr);
+    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, nullptr);
     chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
                       NORMALPRIO, conversionThread, nullptr);
 
@@ -130,7 +124,6 @@ void main_loop()
                 case 'd':
                     USBSerial::write(samplesOut.bytedata(), samplesOut.bytesize());
                     break;
-#ifdef ENABLE_SIGGEN
                 case 'D':
                     if (EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize)) {
                         unsigned int count = cmd[1] | (cmd[2] << 8);
@@ -140,7 +133,6 @@ void main_loop()
                         }
                     }
                     break;
-#endif
 
                 // 'E' - Reads in and loads the compiled conversion code binary from USB.
                 case 'E':
@@ -253,14 +245,12 @@ void main_loop()
                     }
                     break;
 
-#ifdef ENABLE_SIGGEN
                 case 'W':
                     DAC::start(1, samplesSigGen.data(), samplesSigGen.size());
                     break;
                 case 'w':
                     DAC::stop(1);
                     break;
-#endif
 
                 default:
                     break;
@@ -333,19 +323,25 @@ void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
 THD_FUNCTION(Thread1, arg)
 {
     (void)arg;
+
+    bool erroron = false;
     while (1) {
-        palSetLine(LINE_LED1);
-        chThdSleepMilliseconds(70);
-        palSetLine(LINE_LED2);
-        chThdSleepMilliseconds(70);
-        palSetLine(LINE_LED3);
-        chThdSleepMilliseconds(240);
-        palClearLine(LINE_LED1);
-        chThdSleepMilliseconds(70);
-        palClearLine(LINE_LED2);
-        chThdSleepMilliseconds(70);
-        palClearLine(LINE_LED3);
-        chThdSleepMilliseconds(240);
+        bool isidle = run_status == RunStatus::Idle;
+        auto led = isidle ? LINE_LED_GREEN : LINE_LED_YELLOW;
+        auto delay = isidle ? 500 : 250;
+
+        palSetLine(led);
+        chThdSleepMilliseconds(delay);
+        palClearLine(led);
+        chThdSleepMilliseconds(delay);
+
+        if (auto err = EM.hasError(); err ^ erroron) {
+            erroron = err;
+            if (err)
+                palSetLine(LINE_LED_RED);
+            else
+                palClearLine(LINE_LED_RED);
+        }
     }
 }
 

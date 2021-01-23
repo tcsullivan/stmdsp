@@ -18,30 +18,31 @@
  * STM32H743xI generic setup.
  * 
  * AXI SRAM     - BSS, Data, Heap.
- * SRAM1+SRAM2  - None.
- * SRAM4        - NOCACHE.
+ * SRAM1        - SIGGEN.
+ * SRAM2        - DAC.
+ * SRAM4        - ADC.
  * DTCM-RAM     - Main Stack, Process Stack.
  * ITCM-RAM     - STMDSP Algorithm.
  * BCKP SRAM    - None.
  */
 MEMORY
 {
-    flash0 (rx) : org = 0x08000000, len = 1M        /* Flash bank1+bank2 */
-    flash1 (rx) : org = 0x08000000, len = 512K      /* Flash bank 1 */
-    flash2 (rx) : org = 0x08080000, len = 512K      /* Flash bank 2 */
+    flash0 (rx) : org = 0x08000000, len = 1M       /* Flash bank1+bank2 */
+    flash1 (rx) : org = 0x08000000, len = 512K     /* Flash bank 1 */
+    flash2 (rx) : org = 0x08080000, len = 512K     /* Flash bank 2 */
     flash3 (rx) : org = 0x00000000, len = 0
     flash4 (rx) : org = 0x00000000, len = 0
     flash5 (rx) : org = 0x00000000, len = 0
     flash6 (rx) : org = 0x00000000, len = 0
     flash7 (rx) : org = 0x00000000, len = 0
     ram0   (wx) : org = 0x24000000, len = 320k     /* AXI SRAM */
-    ram1   (wx) : org = 0x30000000, len = 32k      /* AHB SRAM1+SRAM2 */
+    ram1   (wx) : org = 0x30000000, len = 16k      /* AHB SRAM1 */
     ram2   (wx) : org = 0x30004000, len = 16k      /* AHB SRAM2 */
     ram3   (wx) : org = 0x38000000, len = 16k      /* AHB SRAM4 */
     ram4   (wx) : org = 0x00000000, len = 0
-    ram5   (wx) : org = 0x20000000, len = 128k      /* DTCM-RAM */
-    ram6   (wx) : org = 0x00000000, len = 64k       /* ITCM-RAM */
-    ram7   (wx) : org = 0x38800000, len = 4k        /* BCKP SRAM */
+    ram5   (wx) : org = 0x20000000, len = 128k     /* DTCM-RAM */
+    ram6   (wx) : org = 0x00000000, len = 64k      /* ITCM-RAM */
+    ram7   (wx) : org = 0x38800000, len = 4k       /* BCKP SRAM */
 }
 
 /* For each data/text section two region are defined, a virtual region
@@ -97,7 +98,7 @@ INCLUDE rules_stacks.ld
 /*===========================================================================*/
 
 /* RAM region to be used for nocache segment.*/
-REGION_ALIAS("NOCACHE_RAM", ram3);
+/*REGION_ALIAS("NOCACHE_RAM", ram3);*/
 
 /* RAM region to be used for eth segment.*/
 /*REGION_ALIAS("ETH_RAM", ram3);*/
@@ -105,7 +106,7 @@ REGION_ALIAS("NOCACHE_RAM", ram3);
 SECTIONS
 {
     /* Special section for non cache-able areas.*/
-    .nocache (NOLOAD) : ALIGN(4)
+    /*.nocache (NOLOAD) : ALIGN(4)
     {
         __nocache_base__ = .;
         *(.nocache)
@@ -113,7 +114,7 @@ SECTIONS
         *(.bss.__nocache_*)
         . = ALIGN(4);
         __nocache_end__ = .;
-    } > NOCACHE_RAM
+    } > NOCACHE_RAM*/
 
     /* Special section for Ethernet DMA non cache-able areas.*/
     /*.eth (NOLOAD) : ALIGN(4)

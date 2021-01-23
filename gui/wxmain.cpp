@@ -47,7 +47,7 @@ static const std::array<unsigned int, 6> srateNums {
 static const char *makefile_text = R"make(
 all:
 	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
-	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
+	                   -mcpu=cortex-m7 -mthumb -mfloat-abi=hard -mfpu=fpv5-d16 -mtune=cortex-m7 \
 	                   -nostartfiles \
 	                   -Wl,-Ttext-segment=0x00000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
 	                   $0 -o $0.o

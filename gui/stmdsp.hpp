@@ -19,7 +19,7 @@
 
 namespace stmdsp
 {
-    constexpr unsigned int SAMPLES_MAX = 3000;
+    constexpr unsigned int SAMPLES_MAX = 4000;
 
     class scanner
     {

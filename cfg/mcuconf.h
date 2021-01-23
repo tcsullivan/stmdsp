@@ -46,8 +46,8 @@
  */
 #define STM32_NOCACHE_MPU_REGION            MPU_REGION_6
 #define STM32_NOCACHE_SRAM1_SRAM2           FALSE
-#define STM32_NOCACHE_SRAM3                 FALSE // keep
-#define STM32_NOCACHE_SRAM4                 TRUE
+#define STM32_NOCACHE_SRAM3                 FALSE
+#define STM32_NOCACHE_ALLSRAM               TRUE
 
 /*
  * PWR system settings.
