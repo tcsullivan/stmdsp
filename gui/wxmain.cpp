@@ -49,7 +49,7 @@ all:
 	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
 	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
 	                   -nostartfiles \
-	                   -Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
+	                   -Wl,-Ttext-segment=0x00000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
 	                   $0 -o $0.o
 	@cp $0.o $0.orig.o
 	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
