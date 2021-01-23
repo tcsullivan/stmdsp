@@ -34,7 +34,7 @@ private:
     static ADCDriver *m_driver;
 
     static const ADCConfig m_config;
-    static const ADCConversionGroup m_group_config;
+    static ADCConversionGroup m_group_config;
 
     static std::array<std::array<uint32_t, 2>, 6> m_rate_presets;
 

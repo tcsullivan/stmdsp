@@ -82,7 +82,11 @@ int main()
 
     ADC::begin();
     DAC::begin();
+    SClock::begin();
     USBSerial::begin();
+
+    SClock::setRate(SClock::Rate::R32K);
+    ADC::setRate(SClock::Rate::R32K);
 
     // Start the conversion manager thread
     chTMObjectInit(&conversion_time_measurement);

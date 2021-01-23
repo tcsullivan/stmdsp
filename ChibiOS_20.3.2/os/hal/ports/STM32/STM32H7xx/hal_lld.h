@@ -377,6 +377,7 @@
 #define STM32_ODEN_DISABLED             0U
 #define STM32_ODEN_ENABLED              (SYSCFG_PWRCR_ODEN)
 
+#define STM32_VOS_SCALE0                0U
 #define STM32_VOS_SCALE3                (PWR_D3CR_VOS_0)
 #define STM32_VOS_SCALE2                (PWR_D3CR_VOS_1)
 #define STM32_VOS_SCALE1                (PWR_D3CR_VOS_1 | PWR_D3CR_VOS_0)
@@ -1404,7 +1405,7 @@
  * @name    Constants depending on VOS and ODEN setting
  * @{
  */
-#if STM32_VOS == STM32_VOS_SCALE1
+#if STM32_VOS == STM32_VOS_SCALE1 || STM32_VOS == STM32_VOS_SCALE0
 #define STM32_0WS_THRESHOLD         70000000U
 #define STM32_1WS_THRESHOLD         140000000U
 #define STM32_2WS_THRESHOLD         210000000U

@@ -18,7 +18,7 @@ const ADCConfig ADC::m_config = {
     .calibration = 0,
 };
 
-const ADCConversionGroup ADC::m_group_config = {
+ADCConversionGroup ADC::m_group_config = {
     .circular = true,
     .num_channels = 1,
     .end_cb = ADC::conversionCallback,
@@ -46,7 +46,7 @@ std::array<std::array<uint32_t, 2>, 6> ADC::m_rate_presets = {{
     {/* 20k */ 80,    8},
     {/* 32k */ 80,    5},
     {/* 48k */ 96,    4},
-    {/* 96k */ 96,    2}
+    {/* 96k */ 288,   10}
 }};
 
 adcsample_t *ADC::m_current_buffer = nullptr;
@@ -59,8 +59,6 @@ void ADC::begin()
 
     adcStart(m_driver, &m_config);
     adcSTM32EnableVREF(m_driver);
-
-    setRate(SClock::Rate::R32K);
 }
 
 void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
@@ -100,6 +98,9 @@ void ADC::setRate(SClock::Rate rate)
     RCC->PLL2DIVR = pll2divr;
     RCC->CR |= RCC_CR_PLL2ON;
     while ((RCC->CR & RCC_CR_PLL2RDY) != RCC_CR_PLL2RDY);
+
+    m_group_config.smpr[0] = rate != SClock::Rate::R96K ? ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5)
+                                                        : ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
 
     adcStart(m_driver, &m_config);
 }
