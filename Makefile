@@ -5,8 +5,7 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -Og -ggdb -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
-#  USE_OPT = -Os -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
+  USE_OPT = -O0 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
 endif
 
 # C specific options here (added to USE_OPT).
@@ -16,7 +15,7 @@ endif
 
 # C++ specific options here (added to USE_OPT).
 ifeq ($(USE_CPPOPT),)
-  USE_CPPOPT = -std=c++2a -fno-rtti -fno-exceptions 
+  USE_CPPOPT = -std=c++17 -fno-rtti
 endif
 
 # Enable this if you want the linker to remove unused code and data.
@@ -56,13 +55,13 @@ endif
 # Stack size to be allocated to the Cortex-M process stack. This stack is
 # the stack used by the main() thread.
 ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 2048
+  USE_PROCESS_STACKSIZE = 0x400
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 1024
+  USE_EXCEPTIONS_STACKSIZE = 0x400
 endif
 
 # Enables the use of FPU (no, softfp, hard).
@@ -72,7 +71,7 @@ endif
 
 # FPU-related options.
 ifeq ($(USE_FPU_OPT),)
-  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv4-sp-d16
+  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv5-d16
 endif
 
 #
@@ -84,13 +83,13 @@ endif
 #
 
 # Define project name here
-PROJECT = stmadc
+PROJECT = ch
 
 # Target settings.
-MCU  = cortex-m4
+MCU  = cortex-m7
 
 # Imported source files and paths.
-CHIBIOS  := ChibiOS_20.3.1
+CHIBIOS  := ./ChibiOS_20.3.2
 CONFDIR  := ./cfg
 BUILDDIR := ./build
 DEPDIR   := ./.dep
@@ -98,13 +97,11 @@ DEPDIR   := ./.dep
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
-include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
+include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32h7xx.mk
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
-include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
-#include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
-#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
+include $(CHIBIOS)/os/hal/ports/STM32/STM32H7xx/platform.mk
+include ./board/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -116,9 +113,8 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 #include $(CHIBIOS)/test/rt/rt_test.mk
 #include $(CHIBIOS)/test/oslib/oslib_test.mk
 
-# Define linker script file here.
-LDSCRIPT= STM32L476xG_stmdsp.ld
-#LDSCRIPT= STM32L432xC_stmdsp.ld
+# Define linker script file here
+LDSCRIPT= STM32H723xG.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -138,10 +134,10 @@ ASMXSRC = $(ALLXASMSRC)
 INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 
 # Define C warning options here.
-CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -pedantic
+CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes
 
 # Define C++ warning options here.
-CPPWARN = -Wall -Wextra -Wundef -pedantic
+CPPWARN = -Wall -Wextra -Wundef
 
 #
 # Project, target, sources and paths
@@ -152,7 +148,7 @@ CPPWARN = -Wall -Wextra -Wundef -pedantic
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS =
+UDEFS = #-DSTM32_ENFORCE_H7_REV_V     # Must be removed for non-Rev-V devices.
 
 # Define ASM defines here
 UADEFS =

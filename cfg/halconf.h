@@ -230,7 +230,7 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(ADC_USE_WAIT) || defined(__DOXYGEN__)
-#define ADC_USE_WAIT                        FALSE
+#define ADC_USE_WAIT                        TRUE
 #endif
 
 /**
@@ -238,7 +238,7 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(ADC_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
-#define ADC_USE_MUTUAL_EXCLUSION            FALSE
+#define ADC_USE_MUTUAL_EXCLUSION            TRUE
 #endif
 
 /*===========================================================================*/
@@ -290,7 +290,7 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(DAC_USE_WAIT) || defined(__DOXYGEN__)
-#define DAC_USE_WAIT                        FALSE
+#define DAC_USE_WAIT                        TRUE
 #endif
 
 /**
@@ -298,7 +298,7 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(DAC_USE_MUTUAL_EXCLUSION) || defined(__DOXYGEN__)
-#define DAC_USE_MUTUAL_EXCLUSION            FALSE
+#define DAC_USE_MUTUAL_EXCLUSION            TRUE
 #endif
 
 /*===========================================================================*/

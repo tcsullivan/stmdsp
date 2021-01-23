@@ -52,9 +52,11 @@ static time_measurement_t conversion_time_measurement;
 
 static ErrorManager EM;
 
-static SampleBuffer samplesIn;
-static SampleBuffer samplesOut;
+static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000));
+static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x38002000));
+#ifdef ENABLE_SIGGEN
 static SampleBuffer samplesSigGen;
+#endif
 
 static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 static ELF::Entry elf_entry = nullptr;
@@ -63,18 +65,19 @@ static void signal_operate(adcsample_t *buffer, size_t count);
 static void signal_operate_measure(adcsample_t *buffer, size_t count);
 static void main_loop();
 
+static THD_WORKING_AREA(waThread1, 128);
+static THD_FUNCTION(Thread1, arg);
+
 int main()
 {
     // Initialize the RTOS
     halInit();
     chSysInit();
 
+    //SCB_DisableDCache();
+
     // Enable FPU
     SCB->CPACR |= 0xF << 20;
-
-    // Prepare LED
-    palSetPadMode(GPIOA, 5,  PAL_MODE_OUTPUT_PUSHPULL);
-    palClearPad(GPIOA, 5);
 
     ADC::begin();
     DAC::begin();
@@ -82,9 +85,10 @@ int main()
 
     // Start the conversion manager thread
     chTMObjectInit(&conversion_time_measurement);
+    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1,
+                      nullptr);
     chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
-                      NORMALPRIO,
-                      conversionThread, nullptr);
+                      NORMALPRIO, conversionThread, nullptr);
 
     main_loop();
 }
@@ -121,6 +125,7 @@ void main_loop()
                 case 'd':
                     USBSerial::write(samplesOut.bytedata(), samplesOut.bytesize());
                     break;
+#ifdef ENABLE_SIGGEN
                 case 'D':
                     if (EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize)) {
                         unsigned int count = cmd[1] | (cmd[2] << 8);
@@ -130,6 +135,7 @@ void main_loop()
                         }
                     }
                     break;
+#endif
 
                 // 'E' - Reads in and loads the compiled conversion code binary from USB.
                 case 'E':
@@ -240,12 +246,14 @@ void main_loop()
                     }
                     break;
 
+#ifdef ENABLE_SIGGEN
                 case 'W':
                     DAC::start(1, samplesSigGen.data(), samplesSigGen.size());
                     break;
                 case 'w':
                     DAC::stop(1);
                     break;
+#endif
 
                 default:
                     break;
@@ -293,18 +301,45 @@ THD_FUNCTION(conversionThread, arg)
     }
 }
 
-void signal_operate(adcsample_t *buffer, [[maybe_unused]] size_t count)
+void signal_operate(adcsample_t *buffer, size_t)
 {
-    if (chMBGetUsedCountI(&conversionMB) > 1)
+    chSysLockFromISR();
+
+    if (chMBGetUsedCountI(&conversionMB) > 1) {
+        chSysUnlockFromISR();
         conversion_abort();
-    else
+    } else {
         chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST : MSG_CONVSECOND);
+        chSysUnlockFromISR();
+    }
 }
 
 void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
 {
+    chSysLockFromISR();
     chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST_MEASURE : MSG_CONVSECOND_MEASURE);
+    chSysUnlockFromISR();
+
     ADC::setOperation(signal_operate);
+}
+
+THD_FUNCTION(Thread1, arg)
+{
+    (void)arg;
+    while (1) {
+        palSetLine(LINE_LED1);
+        chThdSleepMilliseconds(70);
+        palSetLine(LINE_LED2);
+        chThdSleepMilliseconds(70);
+        palSetLine(LINE_LED3);
+        chThdSleepMilliseconds(240);
+        palClearLine(LINE_LED1);
+        chThdSleepMilliseconds(70);
+        palClearLine(LINE_LED2);
+        chThdSleepMilliseconds(70);
+        palClearLine(LINE_LED3);
+        chThdSleepMilliseconds(240);
+    }
 }
 
 extern "C" {
@@ -312,32 +347,33 @@ extern "C" {
 __attribute__((naked))
 void HardFault_Handler()
 {
-    //asm("push {lr}");
-
-    uint32_t *stack;
-    uint32_t lr;
-	asm("\
-		tst lr, #4; \
-		ite eq; \
-		mrseq %0, msp; \
-		mrsne %0, psp; \
-        mov %1, lr; \
-	" : "=r" (stack), "=r" (lr));
-    //stack++;
-    stack[7] |= (1 << 24); // Keep Thumb mode enabled
-
-    conversion_abort();
-
-    // TODO test lr and decide how to recover
-
-    //if (run_status == RunStatus::Converting) {
-        stack[6] = stack[5];   // Escape from elf_entry code
-    //} else /*if (run_status == RunStatus::Recovered)*/ {
-    //    stack[6] = (uint32_t)main_loop & ~1; // Return to safety
-    //}
-
-    //asm("pop {lr}; bx lr");
-    asm("bx lr");
+    while (1);
+//    //asm("push {lr}");
+//
+//    uint32_t *stack;
+//    uint32_t lr;
+//	asm("\
+//		tst lr, #4; \
+//		ite eq; \
+//		mrseq %0, msp; \
+//		mrsne %0, psp; \
+//        mov %1, lr; \
+//	" : "=r" (stack), "=r" (lr));
+//    //stack++;
+//    stack[7] |= (1 << 24); // Keep Thumb mode enabled
+//
+//    conversion_abort();
+//
+//    // TODO test lr and decide how to recover
+//
+//    //if (run_status == RunStatus::Converting) {
+//        stack[6] = stack[5];   // Escape from elf_entry code
+//    //} else /*if (run_status == RunStatus::Recovered)*/ {
+//    //    stack[6] = (uint32_t)main_loop & ~1; // Return to safety
+//    //}
+//
+//    //asm("pop {lr}; bx lr");
+//    asm("bx lr");
 }
 
 } // extern "C"
