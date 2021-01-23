@@ -1821,8 +1821,8 @@
 /**
  * @brief   PLL1 DIVP field.
  */
-#if ((STM32_PLL1_DIVP_VALUE >= 2) && (STM32_PLL1_DIVP_VALUE <= 128) &&      \
-     ((STM32_PLL1_DIVP_VALUE & 1U) == 0U)) ||                               \
+#if ((STM32_PLL1_DIVP_VALUE >= 1) && (STM32_PLL1_DIVP_VALUE <= 128) &&      \
+     ((STM32_PLL1_DIVP_VALUE & 1U) == 0U || STM32_PLL1_DIVP_VALUE == 1)) || \
     defined(__DOXYGEN__)
 #define STM32_PLL1_DIVP             ((STM32_PLL1_DIVP_VALUE - 1U) << 9U)
 #else

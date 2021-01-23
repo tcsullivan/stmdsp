@@ -21,6 +21,7 @@ static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 #include "adc.hpp"
 #include "dac.hpp"
 #include "elf_load.hpp"
+#include "sclock.hpp"
 #include "usbserial.hpp"
 
 #include <array>
@@ -206,10 +207,12 @@ void main_loop()
                 case 'r':
                     if (EM.assert(USBSerial::read(&cmd[1], 1) == 1, Error::BadParamSize)) {
                         if (cmd[1] == 0xFF) {
-                            unsigned char r = static_cast<unsigned char>(ADC::getRate());
+                            unsigned char r = SClock::getRate();
                             USBSerial::write(&r, 1);
                         } else {
-                            ADC::setRate(static_cast<ADC::Rate>(cmd[1]));
+                            auto r = static_cast<SClock::Rate>(cmd[1]);
+                            SClock::setRate(r);
+                            ADC::setRate(r);
                         }
                     }
                     break;

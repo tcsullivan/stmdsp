@@ -25,12 +25,9 @@ public:
 
 private:
     static DACDriver *m_driver[2];
-    static GPTDriver *m_timer;
-    static int m_timer_user_count;
 
     static const DACConfig m_config;
     static const DACConversionGroup m_group_config;
-    static const GPTConfig m_timer_config;
 };
 
 #endif // STMDSP_DAC_HPP_

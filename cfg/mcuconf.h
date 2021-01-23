@@ -71,7 +71,7 @@
 #define STM32_HSI48_ENABLED                 TRUE
 #define STM32_HSE_ENABLED                   FALSE
 #define STM32_LSE_ENABLED                   FALSE
-#define STM32_HSIDIV                        STM32_HSIDIV_DIV8 // 8
+#define STM32_HSIDIV                        STM32_HSIDIV_DIV8 // HSI = 8MHz
 
 /*
  * PLLs static settings.
@@ -83,20 +83,20 @@
 #define STM32_PLL1_P_ENABLED                TRUE
 #define STM32_PLL1_Q_ENABLED                FALSE
 #define STM32_PLL1_R_ENABLED                FALSE
-#define STM32_PLL1_DIVM_VALUE               4   // 2
-#define STM32_PLL1_DIVN_VALUE               384 // 2(384)
+#define STM32_PLL1_DIVM_VALUE               4   // 8 / 4 = 2MHz
+#define STM32_PLL1_DIVN_VALUE               240 // = 2 * 240
 #define STM32_PLL1_FRACN_VALUE              0
-#define STM32_PLL1_DIVP_VALUE               2   // 384
+#define STM32_PLL1_DIVP_VALUE               1   // = 480MHz
 #define STM32_PLL1_DIVQ_VALUE               16
 #define STM32_PLL1_DIVR_VALUE               8
-#define STM32_PLL2_ENABLED                  TRUE
+#define STM32_PLL2_ENABLED                  TRUE  // PLL2 adjusted by adc.cpp
 #define STM32_PLL2_P_ENABLED                TRUE
 #define STM32_PLL2_Q_ENABLED                FALSE
 #define STM32_PLL2_R_ENABLED                FALSE
 #define STM32_PLL2_DIVM_VALUE               4
-#define STM32_PLL2_DIVN_VALUE               384
+#define STM32_PLL2_DIVN_VALUE               80
 #define STM32_PLL2_FRACN_VALUE              0
-#define STM32_PLL2_DIVP_VALUE               32
+#define STM32_PLL2_DIVP_VALUE               20
 #define STM32_PLL2_DIVQ_VALUE               8
 #define STM32_PLL2_DIVR_VALUE               8
 #define STM32_PLL3_ENABLED                  FALSE
@@ -117,9 +117,9 @@
 #define STM32_SW                            STM32_SW_PLL1_P_CK
 #define STM32_RTCSEL                        STM32_RTCSEL_LSI_CK
 #define STM32_D1CPRE                        STM32_D1CPRE_DIV1
-#define STM32_D1HPRE                        STM32_D1HPRE_DIV2
+#define STM32_D1HPRE                        STM32_D1HPRE_DIV2  // /2 = 240MHz
 #define STM32_D1PPRE3                       STM32_D1PPRE3_DIV2
-#define STM32_D2PPRE1                       STM32_D2PPRE1_DIV2 // 192
+#define STM32_D2PPRE1                       STM32_D2PPRE1_DIV2
 #define STM32_D2PPRE2                       STM32_D2PPRE2_DIV2
 #define STM32_D3PPRE4                       STM32_D3PPRE4_DIV2
 
@@ -231,7 +231,7 @@
 #define STM32_ADC_ADC3_IRQ_PRIORITY         5
 #define STM32_ADC_ADC12_CLOCK_MODE          ADC_CCR_CKMODE_AHB_DIV4
 #define STM32_ADC_ADC3_CLOCK_MODE           ADC_CCR_CKMODE_ADCCK
-#define STM32_ADC_ADC3_PRESC                (5 << ADC_CCR_PRESC_Pos) // div10
+#define STM32_ADC_ADC3_PRESC                (5 << ADC_CCR_PRESC_Pos) // /10
 
 /*
  * CAN driver system settings.
@@ -244,7 +244,7 @@
  */
 #define STM32_DAC_DUAL_MODE                 FALSE
 #define STM32_DAC_USE_DAC1_CH1              TRUE
-#define STM32_DAC_USE_DAC1_CH2              FALSE
+#define STM32_DAC_USE_DAC1_CH2              TRUE
 #define STM32_DAC_DAC1_CH1_IRQ_PRIORITY     10
 #define STM32_DAC_DAC1_CH2_IRQ_PRIORITY     10
 #define STM32_DAC_DAC1_CH1_DMA_PRIORITY     2

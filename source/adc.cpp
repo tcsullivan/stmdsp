@@ -12,20 +12,19 @@
 #include "adc.hpp"
 
 ADCDriver *ADC::m_driver = &ADCD3;
-GPTDriver *ADC::m_timer = &GPTD6;
 
 const ADCConfig ADC::m_config = {
     .difsel = 0,
     .calibration = 0,
 };
 
-ADCConversionGroup ADC::m_group_config = {
+const ADCConversionGroup ADC::m_group_config = {
     .circular = true,
     .num_channels = 1,
     .end_cb = ADC::conversionCallback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
-    .cfgr2 = 0,//ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
+    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
     .ccr = 0,
     .pcsel = 0,
     .ltr1 = 0, .htr1 = 0x0FFF,
@@ -40,28 +39,19 @@ ADCConversionGroup ADC::m_group_config = {
     },
 };
 
-const GPTConfig ADC::m_timer_config = {
-    .frequency = 4800000,
-    .callback = nullptr,
-    .cr2 = TIM_CR2_MMS_1, /* TRGO */
-    .dier = 0
-};
-
-std::array<std::array<uint32_t, 4>, 6> ADC::m_rate_presets = {{
-     // Rate   PLLSAI2N  R  OVERSAMPLE 2x?  GPT_DIV
-    {/* 8k  */ 16,       3, 1,              4500},
-    {/* 16k */ 32,       3, 1,              2250},
-    {/* 20k */ 40,       3, 1,              1800},
-    {/* 32k */ 64,       3, 1,              1125},
-    {/* 48k */ 24,       3, 0,               750},
-    {/* 96k */ 48,       3, 0,               375}
+std::array<std::array<uint32_t, 2>, 6> ADC::m_rate_presets = {{
+     // Rate   PLL N  PLL P
+    {/* 8k  */ 80,    20},
+    {/* 16k */ 80,    10},
+    {/* 20k */ 80,    8},
+    {/* 32k */ 80,    5},
+    {/* 48k */ 96,    4},
+    {/* 96k */ 96,    2}
 }};
 
 adcsample_t *ADC::m_current_buffer = nullptr;
 size_t ADC::m_current_buffer_size = 0;
 ADC::Operation ADC::m_operation = nullptr;
-
-unsigned int ADC::m_timer_divisor = 50;
 
 void ADC::begin()
 {
@@ -69,9 +59,8 @@ void ADC::begin()
 
     adcStart(m_driver, &m_config);
     adcSTM32EnableVREF(m_driver);
-    gptStart(m_timer, &m_timer_config);
 
-    //setRate(Rate::R32K);
+    setRate(SClock::Rate::R32K);
 }
 
 void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
@@ -81,12 +70,12 @@ void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
     m_operation = operation;
 
     adcStartConversion(m_driver, &m_group_config, buffer, count);
-    gptStartContinuous(m_timer, m_timer_divisor);
+    SClock::start();
 }
 
 void ADC::stop()
 {
-    gptStopTimer(m_timer);
+    SClock::stop();
     adcStopConversion(m_driver);
 
     m_current_buffer = nullptr;
@@ -94,27 +83,25 @@ void ADC::stop()
     m_operation = nullptr;
 }
 
-void ADC::setRate(ADC::Rate rate)
+void ADC::setRate(SClock::Rate rate)
 {
-//    auto& preset = m_rate_presets[static_cast<int>(rate)];
-//    auto pllnr = (preset[0] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos) |
-//                 (preset[1] << RCC_PLLSAI2CFGR_PLLSAI2R_Pos);
-//    bool oversample = preset[2] != 0;
-//    m_timer_divisor = preset[3];
+    auto& preset = m_rate_presets[static_cast<unsigned int>(rate)];
+    auto pllbits = (preset[0] << RCC_PLL2DIVR_N2_Pos) |
+                   (preset[1] << RCC_PLL2DIVR_P2_Pos);
 
-//    adcStop(m_driver);
-//
-//    // Adjust PLLSAI2
-//    RCC->CR &= ~(RCC_CR_PLLSAI2ON);
-//    while ((RCC->CR & RCC_CR_PLLSAI2RDY) == RCC_CR_PLLSAI2RDY);
-//    RCC->PLLSAI2CFGR = (RCC->PLLSAI2CFGR & ~(RCC_PLLSAI2CFGR_PLLSAI2N_Msk | RCC_PLLSAI2CFGR_PLLSAI2R_Msk)) | pllnr;
-//    RCC->CR |= RCC_CR_PLLSAI2ON;
-//    while ((RCC->CR & RCC_CR_PLLSAI2RDY) != RCC_CR_PLLSAI2RDY);
-//
-//    // Set 2x oversampling
-//    m_group_config.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
-//
-//    adcStart(m_driver, &m_config);
+    adcStop(m_driver);
+
+    // Adjust PLL2
+    RCC->CR &= ~(RCC_CR_PLL2ON);
+    while ((RCC->CR & RCC_CR_PLL2RDY) == RCC_CR_PLL2RDY);
+    auto pll2divr = RCC->PLL2DIVR &
+                    ~(RCC_PLL2DIVR_N2_Msk | RCC_PLL2DIVR_P2_Msk);
+    pll2divr |= pllbits;
+    RCC->PLL2DIVR = pll2divr;
+    RCC->CR |= RCC_CR_PLL2ON;
+    while ((RCC->CR & RCC_CR_PLL2RDY) != RCC_CR_PLL2RDY);
+
+    adcStart(m_driver, &m_config);
 }
 
 void ADC::setOperation(ADC::Operation operation)
@@ -122,21 +109,6 @@ void ADC::setOperation(ADC::Operation operation)
     m_operation = operation;
 }
 
-int ADC::getRate()
-{
-    for (unsigned int i = 0; i < m_rate_presets.size(); i++) {
-        if (m_timer_divisor == m_rate_presets[i][3])
-            return i;
-    }
-
-    return -1;
-}
-
-unsigned int ADC::getTimerDivisor()
-{
-    return m_timer_divisor;
-}
- 
 void ADC::conversionCallback(ADCDriver *driver)
 {
     if (m_operation != nullptr) {
