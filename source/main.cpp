@@ -89,6 +89,25 @@ int main()
     chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
                       NORMALPRIO, conversionThread, nullptr);
 
+    // TEST (success!)
+    /*double input = 0.25L;
+
+    RCC->AHB2ENR |= RCC_AHB2ENR_CORDICEN;
+    uint32_t dummy = 0;
+    while (CORDIC->CSR & CORDIC_CSR_RRDY)
+        dummy = CORDIC->RDATA;
+
+    CORDIC->CSR = (3 << CORDIC_CSR_PRECISION_Pos) |
+                  (9 << CORDIC_CSR_FUNC_Pos); // 1 arg, 3 iterations, sqrt
+
+    input *= 0x7FFFFFFF;
+    dummy = input;
+    CORDIC->WDATA = dummy;
+    while (!(CORDIC->CSR & CORDIC_CSR_RRDY));
+    // result: 
+    dummy = CORDIC->RDATA; // m cos()
+    double output = (double)dummy / 0x7FFFFFFF;*/
+
     main_loop();
 }
 
