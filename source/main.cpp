@@ -12,6 +12,12 @@
 #include "ch.h"
 #include "hal.h"
 
+static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
+static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
+
+#include "common.hpp"
+#include "error.hpp"
+
 #include "adc.hpp"
 #include "dac.hpp"
 #include "elf_load.hpp"
@@ -20,44 +26,21 @@
 #include <array>
 
 constexpr unsigned int MAX_ELF_FILE_SIZE = 8 * 1024;
-constexpr unsigned int MAX_ERROR_QUEUE_SIZE = 8;
-constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = 6000; // operate on buffers size this / 2
-constexpr unsigned int MAX_SIGGEN_BUFFER_SIZE = MAX_SAMPLE_BUFFER_SIZE / 2;
 
 enum class RunStatus : char
 {
     Idle = '1',
     Running
 };
-enum class Error : char
-{
-    None = 0,
-    BadParam,
-    BadParamSize,
-    BadUserCodeLoad,
-    BadUserCodeSize,
-    NotIdle,
-    ConversionAborted
-};
-
 static RunStatus run_status = RunStatus::Idle;
-static Error error_queue[MAX_ERROR_QUEUE_SIZE];
-static unsigned int error_queue_index = 0;
-
-static void error_queue_add(Error error)
-{
-    if (error_queue_index < MAX_ERROR_QUEUE_SIZE)
-        error_queue[error_queue_index++] = error;
-}
-static Error error_queue_pop()
-{
-    return error_queue_index == 0 ? Error::None : error_queue[--error_queue_index];
-}
 
 #define MSG_CONVFIRST          (1)
 #define MSG_CONVSECOND         (2)
 #define MSG_CONVFIRST_MEASURE  (3)
 #define MSG_CONVSECOND_MEASURE (4)
+
+#define MSG_FOR_FIRST(m)   (m & 1)
+#define MSG_FOR_MEASURE(m) (m > 2)
 
 static msg_t conversionMBBuffer[4];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 4);
@@ -67,22 +50,11 @@ static THD_FUNCTION(conversionThread, arg);
 
 static time_measurement_t conversion_time_measurement;
 
-static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
-static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
+static ErrorManager EM;
 
-#if CACHE_LINE_SIZE > 0
-CC_ALIGN(CACHE_LINE_SIZE)
-#endif
-static std::array<adcsample_t, CACHE_SIZE_ALIGN(adcsample_t, MAX_SAMPLE_BUFFER_SIZE)> adc_samples;
-#if CACHE_LINE_SIZE > 0
-CC_ALIGN(CACHE_LINE_SIZE)
-#endif
-static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SAMPLE_BUFFER_SIZE)> dac_samples;
-static volatile const dacsample_t *dac_samples_new = nullptr;
-#if CACHE_LINE_SIZE > 0
-CC_ALIGN(CACHE_LINE_SIZE)
-#endif
-static std::array<dacsample_t, CACHE_SIZE_ALIGN(dacsample_t, MAX_SIGGEN_BUFFER_SIZE)> dac2_samples;
+static SampleBuffer samplesIn;
+static SampleBuffer samplesOut;
+static SampleBuffer samplesSigGen;
 
 static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 static ELF::Entry elf_entry = nullptr;
@@ -117,10 +89,6 @@ int main()
     main_loop();
 }
 
-static unsigned int dac_sample_count = MAX_SAMPLE_BUFFER_SIZE;
-static unsigned int dac2_sample_count = MAX_SIGGEN_BUFFER_SIZE;
-static unsigned int adc_sample_count = MAX_SAMPLE_BUFFER_SIZE;
-
 void main_loop()
 {
 
@@ -132,71 +100,50 @@ void main_loop()
                 switch (cmd[0]) {
 
                 case 'a':
-                    USBSerial::write((uint8_t *)adc_samples.data(),
-                                     adc_sample_count * sizeof(adcsample_t));
+                    USBSerial::write(samplesIn.bytedata(), samplesIn.bytesize());
                     break;
                 case 'A':
-                    USBSerial::read((uint8_t *)&adc_samples[0],
-                                    adc_sample_count * sizeof(adcsample_t));
+                    USBSerial::read(samplesIn.bytedata(), samplesIn.bytesize());
                     break;
 
                 case 'B':
-                    if (run_status == RunStatus::Idle) {
-                        if (USBSerial::read(&cmd[1], 2) == 2) {
-                            unsigned int count = cmd[1] | (cmd[2] << 8);
-                            if (count <= MAX_SAMPLE_BUFFER_SIZE / 2) {
-                                adc_sample_count = count * 2;
-                                dac_sample_count = count * 2;
-                            } else {
-                                error_queue_add(Error::BadParam);
-                            }
-                        } else {
-                            error_queue_add(Error::BadParamSize);
+                    if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle) &&
+                        EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize))
+                    {
+                        unsigned int count = (cmd[1] | (cmd[2] << 8)) * 2;
+                        if (EM.assert(count <= MAX_SAMPLE_BUFFER_SIZE, Error::BadParam)) {
+                            samplesIn.setSize(count);
+                            samplesOut.setSize(count);
                         }
-                    } else {
-                        error_queue_add(Error::NotIdle);
                     }
                     break;
 
                 case 'd':
-                    USBSerial::write((uint8_t *)dac_samples.data(),
-                                     dac_sample_count * sizeof(dacsample_t));
+                    USBSerial::write(samplesOut.bytedata(), samplesOut.bytesize());
                     break;
                 case 'D':
-                    if (USBSerial::read(&cmd[1], 2) == 2) {
+                    if (EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize)) {
                         unsigned int count = cmd[1] | (cmd[2] << 8);
-                        if (count <= MAX_SIGGEN_BUFFER_SIZE) {
-                            dac2_sample_count = count;
-                            USBSerial::read((uint8_t *)&dac2_samples[0],
-                                            dac2_sample_count * sizeof(dacsample_t));
-                        } else {
-                            error_queue_add(Error::BadParam);
+                        if (EM.assert(count <= MAX_SAMPLE_BUFFER_SIZE, Error::BadParam)) {
+                            samplesSigGen.setSize(count);
+                            USBSerial::read(samplesSigGen.bytedata(), samplesSigGen.bytesize());
                         }
-                    } else {
-                        error_queue_add(Error::BadParamSize);
                     }
                     break;
 
                 // 'E' - Reads in and loads the compiled conversion code binary from USB.
                 case 'E':
-                    if (run_status == RunStatus::Idle) {
-                        if (USBSerial::read(&cmd[1], 2) == 2) {
-                            // Only load the binary if it can fit in the memory reserved for it.
-                            unsigned int size = cmd[1] | (cmd[2] << 8);
-                            if (size < sizeof(elf_file_store)) {
-                                USBSerial::read(elf_file_store, size);
-                                elf_entry = ELF::load(elf_file_store);
+                    if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle) &&
+                        EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize))
+                    {
+                        // Only load the binary if it can fit in the memory reserved for it.
+                        unsigned int size = cmd[1] | (cmd[2] << 8);
+                        if (EM.assert(size < sizeof(elf_file_store), Error::BadUserCodeSize)) {
+                            USBSerial::read(elf_file_store, size);
+                            elf_entry = ELF::load(elf_file_store);
 
-                                if (elf_entry == nullptr)
-                                    error_queue_add(Error::BadUserCodeLoad);
-                            } else {
-                                error_queue_add(Error::BadUserCodeSize);
-                            }
-                        } else {
-                            error_queue_add(Error::BadParamSize);
+                            EM.assert(elf_entry != nullptr, Error::BadUserCodeLoad);
                         }
-                    } else {
-                        error_queue_add(Error::NotIdle);
                     }
                     break;
 
@@ -207,7 +154,7 @@ void main_loop()
 
                 // 'i' - Sends an identifying string to confirm that this is the stmdsp device.
                 case 'i':
-                    USBSerial::write((uint8_t *)"stmdsp", 6);
+                    USBSerial::write(reinterpret_cast<const uint8_t *>("stmdsp"), 6);
                     break;
 
                 // 'I' - Sends the current run status.
@@ -215,7 +162,7 @@ void main_loop()
                     {
                         unsigned char buf[2] = {
                             static_cast<unsigned char>(run_status),
-                            static_cast<unsigned char>(error_queue_pop())
+                            static_cast<unsigned char>(EM.pop())
                         };
                         USBSerial::write(buf, sizeof(buf));
                     }
@@ -224,45 +171,40 @@ void main_loop()
                 // 'M' - Begins continuous sampling, but measures the execution time of the first
                 //       sample processing. This duration can be later read through 'm'.
                 case 'M':
-                    if (run_status == RunStatus::Idle) {
+                    if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle)) {
                         run_status = RunStatus::Running;
-                        dac_samples.fill(0);
-                        ADC::start(&adc_samples[0], adc_sample_count, signal_operate_measure);
-                        DAC::start(0, &dac_samples[0], dac_sample_count);
-                    } else {
-                        error_queue_add(Error::NotIdle);
+                        samplesOut.clear();
+                        ADC::start(samplesIn.data(), samplesIn.size(), signal_operate_measure);
+                        DAC::start(0, samplesOut.data(), samplesOut.size());
                     }
                     break;
 
                 // 'm' - Returns the last measured sample processing time, presumably in processor
                 //       ticks.
                 case 'm':
-                    USBSerial::write((uint8_t *)&conversion_time_measurement.last, sizeof(rtcnt_t));
+                    USBSerial::write(reinterpret_cast<uint8_t *>(&conversion_time_measurement.last),
+                                     sizeof(rtcnt_t));
                     break;
 
                 // 'R' - Begin continuous sampling/conversion of the ADC. Samples will go through
                 //       the conversion code, and will be sent out over the DAC.
                 case 'R':
-                    if (run_status == RunStatus::Idle) {
+                    if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle)) {
                         run_status = RunStatus::Running;
-                        dac_samples.fill(0);
-                        ADC::start(&adc_samples[0], adc_sample_count, signal_operate);
-                        DAC::start(0, &dac_samples[0], dac_sample_count);
-                    } else {
-                        error_queue_add(Error::NotIdle);
+                        samplesOut.clear();
+                        ADC::start(samplesIn.data(), samplesIn.size(), signal_operate);
+                        DAC::start(0, samplesOut.data(), samplesOut.size());
                     }
                     break;
 
                 case 'r':
-                    if (USBSerial::read(&cmd[1], 1) == 1) {
+                    if (EM.assert(USBSerial::read(&cmd[1], 1) == 1, Error::BadParamSize)) {
                         if (cmd[1] == 0xFF) {
                             unsigned char r = static_cast<unsigned char>(ADC::getRate());
                             USBSerial::write(&r, 1);
                         } else {
                             ADC::setRate(static_cast<ADC::Rate>(cmd[1]));
                         }
-                    } else {
-                        error_queue_add(Error::BadParamSize);
                     }
                     break;
 
@@ -276,34 +218,30 @@ void main_loop()
                     break;
 
                 case 's':
-                    if (dac_samples_new != nullptr) {
-                        auto samps = reinterpret_cast<const uint8_t *>(
-                            const_cast<const dacsample_t *>(dac_samples_new));
-                        dac_samples_new = nullptr;
-
+                    if (auto samps = samplesOut.modified(); samps != nullptr) {
                         unsigned char buf[2] = {
-                            static_cast<unsigned char>(dac_sample_count / 2 & 0xFF),
-                            static_cast<unsigned char>(((dac_sample_count / 2) >> 8) & 0xFF)
+                            static_cast<unsigned char>(samplesOut.size() / 2 & 0xFF),
+                            static_cast<unsigned char>(((samplesOut.size() / 2) >> 8) & 0xFF)
                         };
                         USBSerial::write(buf, 2);
-                        unsigned int total = dac_sample_count / 2 * sizeof(dacsample_t);
+                        unsigned int total = samplesOut.bytesize() / 2;
                         unsigned int offset = 0;
                         unsigned char unused;
                         while (total > 512) {
-                            USBSerial::write(samps + offset, 512);
+                            USBSerial::write(reinterpret_cast<uint8_t *>(samps) + offset, 512);
                             while (USBSerial::read(&unused, 1) == 0);
                             offset += 512;
                             total -= 512;
                         }
-                        USBSerial::write(samps + offset, total);
+                        USBSerial::write(reinterpret_cast<uint8_t *>(samps) + offset, total);
                         while (USBSerial::read(&unused, 1) == 0);
                     } else {
-                        USBSerial::write((uint8_t *)"\0\0", 2);
+                        USBSerial::write(reinterpret_cast<const uint8_t *>("\0\0"), 2);
                     }
                     break;
 
                 case 'W':
-                    DAC::start(1, &dac2_samples[0], dac2_sample_count);
+                    DAC::start(1, samplesSigGen.data(), samplesSigGen.size());
                     break;
                 case 'w':
                     DAC::stop(1);
@@ -324,7 +262,7 @@ void conversion_abort()
     elf_entry = nullptr;
     DAC::stop(0);
     ADC::stop();
-    error_queue_add(Error::ConversionAborted);
+    EM.add(Error::ConversionAborted);
 }
 
 THD_FUNCTION(conversionThread, arg)
@@ -334,41 +272,23 @@ THD_FUNCTION(conversionThread, arg)
     while (1) {
         msg_t message;
         if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK) {
-            adcsample_t *samples = nullptr;
-            auto halfsize = adc_sample_count / 2;
-            if (message == MSG_CONVFIRST) {
-                if (elf_entry)
-                    samples = elf_entry(&adc_samples[0], halfsize);
-                if (!samples)
-                    samples = &adc_samples[0];
-                std::copy(samples, samples + halfsize, &dac_samples[0]);
-                dac_samples_new = &dac_samples[0];
-            } else if (message == MSG_CONVSECOND) {
-                if (elf_entry)
-                    samples = elf_entry(&adc_samples[halfsize], halfsize);
-                if (!samples)
-                    samples = &adc_samples[halfsize];
-                std::copy(samples, samples + halfsize, &dac_samples[dac_sample_count / 2]);
-                dac_samples_new = &dac_samples[dac_sample_count / 2];
-            } else if (message == MSG_CONVFIRST_MEASURE) {
-                chTMStartMeasurementX(&conversion_time_measurement);
-                if (elf_entry)
-                    samples = elf_entry(&adc_samples[0], halfsize);
-                chTMStopMeasurementX(&conversion_time_measurement);
-                if (!samples)
-                    samples = &adc_samples[0];
-                std::copy(samples, samples + halfsize, &dac_samples[0]);
-                dac_samples_new = &dac_samples[0];
-            } else if (message == MSG_CONVSECOND_MEASURE) {
-                chTMStartMeasurementX(&conversion_time_measurement);
-                if (elf_entry)
-                    samples = elf_entry(&adc_samples[halfsize], halfsize);
-                chTMStopMeasurementX(&conversion_time_measurement);
-                if (!samples)
-                    samples = &adc_samples[halfsize];
-                std::copy(samples, samples + halfsize, &dac_samples[dac_sample_count / 2]);
-                dac_samples_new = &dac_samples[dac_sample_count / 2];
+            auto samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
+            auto size = samplesIn.size() / 2;
+
+            if (elf_entry) {
+                if (!MSG_FOR_MEASURE(message)) {
+                    samples = elf_entry(samples, size);
+                } else {
+                    chTMStartMeasurementX(&conversion_time_measurement);
+                    samples = elf_entry(samples, size);
+                    chTMStopMeasurementX(&conversion_time_measurement);
+                } 
             }
+
+            if (MSG_FOR_FIRST(message))
+                samplesOut.modify(samples, size); 
+            else
+                samplesOut.midmodify(samples, size); 
         }
     }
 }
@@ -378,12 +298,12 @@ void signal_operate(adcsample_t *buffer, [[maybe_unused]] size_t count)
     if (chMBGetUsedCountI(&conversionMB) > 1)
         conversion_abort();
     else
-        chMBPostI(&conversionMB, buffer == &adc_samples[0] ? MSG_CONVFIRST : MSG_CONVSECOND);
+        chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST : MSG_CONVSECOND);
 }
 
 void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
 {
-    chMBPostI(&conversionMB, buffer == &adc_samples[0] ? MSG_CONVFIRST_MEASURE : MSG_CONVSECOND_MEASURE);
+    chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST_MEASURE : MSG_CONVSECOND_MEASURE);
     ADC::setOperation(signal_operate);
 }
 

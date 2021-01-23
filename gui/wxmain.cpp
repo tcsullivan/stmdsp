@@ -24,7 +24,66 @@
 #include <wx/statusbr.h>
 #include <wx/textdlg.h>
 
+#include <array>
 #include <vector>
+
+static const std::array<wxString, 6> srateValues {
+    "8 kS/s",
+    "16 kS/s",
+    "20 kS/s",
+    "32 kS/s",
+    "48 kS/s",
+    "96 kS/s"
+};
+static const std::array<unsigned int, 6> srateNums {
+    8000,
+    16000,
+    20000,
+    32000,
+    48000,
+    96000
+};
+
+static const char *makefile_text = R"make(
+all:
+	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
+	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
+	                   -nostartfiles \
+	                   -Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
+	                   $0 -o $0.o
+	@cp $0.o $0.orig.o
+	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
+	@arm-none-eabi-objcopy --remove-section .ARM.attributes \
+                           --remove-section .comment \
+                           --remove-section .noinit \
+                           $0.o
+	arm-none-eabi-size $0.o
+)make";
+
+static const char *file_header = R"cpp(
+#include <cstdint>
+
+using adcsample_t = uint16_t;
+constexpr unsigned int SIZE = $0;
+
+adcsample_t *process_data(adcsample_t *samples, unsigned int size);
+
+extern "C" void process_data_entry()
+{
+    ((void (*)())process_data)();
+}
+
+// End stmdspgui header code
+
+)cpp";
+
+static const char *file_content = 
+R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
+{
+    return samples;
+}
+)cpp";
+
 
 enum Id {
     MeasureTimer = 1,
@@ -78,17 +137,9 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
     splitter->SetMinimumPaneSize(20);
 
     auto comp = new wxButton(panelToolbar, Id::MCodeCompile, "Compile");
-    static const wxString srateValues[] = {
-        "8 kS/s",
-        "16 kS/s",
-        "20 kS/s",
-        "32 kS/s",
-        "48 kS/s",
-        "96 kS/s"
-    };
     m_rate_select = new wxComboBox(panelToolbar, wxID_ANY,
                                    wxEmptyString, wxDefaultPosition, wxDefaultSize,
-                                   6, srateValues, wxCB_READONLY);
+                                   srateValues.size(), srateValues.data(), wxCB_READONLY);
     m_rate_select->Disable();
 
     sizerToolbar->Add(comp, 0, wxLEFT, 4);
@@ -182,11 +233,23 @@ void MainFrame::onMeasureTimer([[maybe_unused]] wxTimerEvent&)
     if (m_conv_result_log != nullptr) {
         if (auto samples = m_device->continuous_read(); samples.size() > 0) {
             for (auto& s : samples) {
-                auto str = wxString::Format("%u\n", s);
-                m_conv_result_log->Write(str.ToAscii(), str.Len());
+                auto str = std::to_string(s);
+                m_conv_result_log->Write(str.c_str(), str.size());
             }
         }
-    } else if (m_status_bar && m_run_measure && m_run_measure->IsChecked()) {
+    }
+
+    if (m_wav_clip != nullptr) {
+        auto size = m_device->get_buffer_size();
+        auto chunk = new stmdsp::adcsample_t[size];
+        auto src = reinterpret_cast<uint16_t *>(m_wav_clip->next(size));
+        for (unsigned int i = 0; i < size; i++)
+            chunk[i] = ((uint32_t)*src++) / 16 + 2048;
+        m_device->siggen_upload(chunk, size);
+        delete[] chunk;
+    }
+
+    if (m_status_bar && m_run_measure && m_run_measure->IsChecked()) {
         m_status_bar->SetStatusText(wxString::Format(wxT("Execution time: %u cycles"),
                                                      m_device->continuous_start_get_measurement()));
     }
@@ -230,46 +293,16 @@ void MainFrame::prepareEditor()
     onFileNew(dummy);
 }
 
-static const char *makefile_text = R"make(
-all:
-	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
-	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
-	                   -nostartfiles \
-	                   -Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
-	                   $0 -o $0.o
-	@cp $0.o $0.orig.o
-	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
-	@arm-none-eabi-objcopy --remove-section .ARM.attributes \
-                           --remove-section .comment \
-                           --remove-section .noinit \
-                           $0.o
-	arm-none-eabi-size $0.o
-)make";
-
-static wxString file_header (R"cpp(
-#include <cstdint>
-
-using adcsample_t = uint16_t;
-constexpr unsigned int SIZE = 3000;
-
-adcsample_t *process_data(adcsample_t *samples, unsigned int size);
-
-extern "C" void process_data_entry()
-{
-    ((void (*)())process_data)();
-}
-
-// End stmdspgui header code
-
-)cpp");
-
 wxString MainFrame::compileEditorCode()
 {
     if (m_temp_file_name.IsEmpty())
         m_temp_file_name = wxFileName::CreateTempFileName("stmdspgui");
 
     wxFile file (m_temp_file_name, wxFile::write);
-    file.Write(file_header + m_text_editor->GetText());
+    wxString file_text (file_header);
+    file_text.Replace("$0", std::to_string(m_device != nullptr ? m_device->get_buffer_size()
+                                                               : stmdsp::SAMPLES_MAX));
+    file.Write(wxString(file_text) + m_text_editor->GetText());
     file.Close();
 
     wxFile makefile (m_temp_file_name + "make", wxFile::write);
@@ -301,12 +334,7 @@ wxString MainFrame::compileEditorCode()
 void MainFrame::onFileNew([[maybe_unused]] wxCommandEvent&)
 {
     m_open_file_path = "";
-    m_text_editor->SetText(
-R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
-{
-    return samples;
-}
-)cpp");
+    m_text_editor->SetText(file_content);
     m_text_editor->DiscardEdits();
     m_status_bar->SetStatusText("Ready.");
 }
@@ -444,6 +472,10 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
             if (m_run_measure && m_run_measure->IsChecked()) {
                 m_device->continuous_start_measure();
                 m_measure_timer->StartOnce(1000);
+            } else if (m_wav_clip != nullptr) {
+                m_device->continuous_start();
+                m_measure_timer->Start(m_device->get_buffer_size() * 500 / 
+                                       srateNums[m_rate_select->GetSelection()]);
             } else {
                 m_device->continuous_start();
                 m_measure_timer->Start(15);
@@ -458,6 +490,7 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
         }
     } else {
         m_device->continuous_stop();
+        m_measure_timer->Stop();
 
         menuItem->SetItemLabel("&Start");
         m_status_bar->SetStatusText("Ready.");
@@ -536,32 +569,43 @@ void MainFrame::onRunGenUpload([[maybe_unused]] wxCommandEvent&)
                                         "between zero and 4095.", "Enter Generator Values");
         if (dialog.ShowModal() == wxID_OK) {
             if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
-                std::vector<stmdsp::dacsample_t> samples;
-                while (!values.IsEmpty()) {
-                    if (auto number_end = values.find_first_not_of("0123456789");
-                        number_end != wxString::npos && number_end > 0)
-                    {
-                        auto number = values.Left(number_end);
-                        if (unsigned long n; number.ToULong(&n))
-                            samples.push_back(n & 4095);
-
-                        if (auto next = values.find_first_of("0123456789", number_end + 1);
-                            next != wxString::npos)
+                if (values[0] == '/') {
+                    m_wav_clip = new wav::clip(values.Mid(1));
+                    if (m_wav_clip->valid()) {
+                        m_status_bar->SetStatusText("Generator ready.");
+                    } else {
+                        delete m_wav_clip;
+                        m_wav_clip = nullptr;
+                        m_status_bar->SetStatusText("Error: Bad WAV file.");
+                    }
+                } else {
+                    std::vector<stmdsp::dacsample_t> samples;
+                    while (!values.IsEmpty()) {
+                        if (auto number_end = values.find_first_not_of("0123456789");
+                            number_end != wxString::npos && number_end > 0)
                         {
-                            values = values.Mid(next);
+                            auto number = values.Left(number_end);
+                            if (unsigned long n; number.ToULong(&n))
+                                samples.push_back(n & 4095);
+
+                            if (auto next = values.find_first_of("0123456789", number_end + 1);
+                                next != wxString::npos)
+                            {
+                                values = values.Mid(next);
+                            } else {
+                                break;
+                            }
                         } else {
                             break;
                         }
-                    } else {
-                        break;
                     }
-                }
 
-                if (samples.size() <= stmdsp::SAMPLES_MAX) {
-                    m_device->siggen_upload(&samples[0], samples.size());
-                    m_status_bar->SetStatusText("Generator ready.");
-                } else {
-                    m_status_bar->SetStatusText("Error: Too many samples.");
+                    if (samples.size() <= stmdsp::SAMPLES_MAX) {
+                        m_device->siggen_upload(&samples[0], samples.size());
+                        m_status_bar->SetStatusText("Generator ready.");
+                    } else {
+                        m_status_bar->SetStatusText("Error: Too many samples.");
+                    }
                 }
             } else {
                 m_status_bar->SetStatusText("Error: No samples given.");

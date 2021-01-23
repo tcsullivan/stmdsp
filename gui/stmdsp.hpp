@@ -19,7 +19,7 @@
 
 namespace stmdsp
 {
-    constexpr unsigned int SAMPLES_MAX = 4000;
+    constexpr unsigned int SAMPLES_MAX = 3000;
 
     class scanner
     {
@@ -55,6 +55,7 @@ namespace stmdsp
         //std::vector<adcsample_t> sample(unsigned long int count = 1);
 
         void continuous_set_buffer_size(unsigned int size);
+        unsigned int get_buffer_size() const { return m_buffer_size; }
         void set_sample_rate(unsigned int id);
         unsigned int get_sample_rate();
         void continuous_start();
@@ -73,6 +74,7 @@ namespace stmdsp
 
     private:
         serial::Serial m_serial;
+        unsigned int m_buffer_size = SAMPLES_MAX;
     };
 }
 

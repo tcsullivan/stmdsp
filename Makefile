@@ -117,8 +117,8 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 #include $(CHIBIOS)/test/oslib/oslib_test.mk
 
 # Define linker script file here.
-#LDSCRIPT= $(STARTUPLD)/STM32L476xG.ld
-LDSCRIPT= STM32L432xC_stmdsp.ld
+LDSCRIPT= STM32L476xG_stmdsp.ld
+#LDSCRIPT= STM32L432xC_stmdsp.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.

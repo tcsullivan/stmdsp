@@ -13,6 +13,7 @@
 #define WXMAIN_HPP_
 
 #include "stmdsp.hpp"
+#include "wav.hpp"
 
 #include <fstream>
 #include <future>
@@ -75,6 +76,7 @@ private:
     wxString m_temp_file_name;
 
     stmdsp::device *m_device = nullptr;
+    wav::clip *m_wav_clip = nullptr;
 
     bool tryDevice();
     void prepareEditor();

@@ -36,24 +36,10 @@ namespace stmdsp
         }
     }
 
-    /*std::vector<adcsample_t> device::sample(unsigned long int count) {
-        if (connected()) {
-            uint8_t request[3] = {
-                'd',
-                static_cast<uint8_t>(count),
-                static_cast<uint8_t>(count >> 8)
-            };
-            m_serial.write(request, 3);
-            std::vector<adcsample_t> data (count);
-            m_serial.read(reinterpret_cast<uint8_t *>(data.data()), data.size() * sizeof(adcsample_t));
-            return data;
-        } else {
-            return {};
-        }
-    }*/
-
     void device::continuous_set_buffer_size(unsigned int size) {
         if (connected()) {
+            m_buffer_size = size;
+
             uint8_t request[3] = {
                 'B',
                 static_cast<uint8_t>(size),
