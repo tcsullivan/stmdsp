@@ -19,6 +19,7 @@ static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 #include "error.hpp"
 
 #include "adc.hpp"
+#include "cordic.hpp"
 #include "dac.hpp"
 #include "elf_load.hpp"
 #include "sclock.hpp"
@@ -31,7 +32,8 @@ constexpr unsigned int MAX_ELF_FILE_SIZE = 8 * 1024;
 enum class RunStatus : char
 {
     Idle = '1',
-    Running
+    Running,
+    Recovering
 };
 static RunStatus run_status = RunStatus::Idle;
 
@@ -80,6 +82,7 @@ int main()
     DAC::begin();
     SClock::begin();
     USBSerial::begin();
+    math::init();
 
     SClock::setRate(SClock::Rate::R32K);
     ADC::setRate(SClock::Rate::R32K);
@@ -88,25 +91,6 @@ int main()
     chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, nullptr);
     chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
                       NORMALPRIO, conversionThread, nullptr);
-
-    // TEST (success!)
-    /*double input = 0.25L;
-
-    RCC->AHB2ENR |= RCC_AHB2ENR_CORDICEN;
-    uint32_t dummy = 0;
-    while (CORDIC->CSR & CORDIC_CSR_RRDY)
-        dummy = CORDIC->RDATA;
-
-    CORDIC->CSR = (3 << CORDIC_CSR_PRECISION_Pos) |
-                  (9 << CORDIC_CSR_FUNC_Pos); // 1 arg, 3 iterations, sqrt
-
-    input *= 0x7FFFFFFF;
-    dummy = input;
-    CORDIC->WDATA = dummy;
-    while (!(CORDIC->CSR & CORDIC_CSR_RRDY));
-    // result: 
-    dummy = CORDIC->RDATA; // m cos()
-    double output = (double)dummy / 0x7FFFFFFF;*/
 
     main_loop();
 }
@@ -287,6 +271,9 @@ void conversion_abort()
     DAC::stop(0);
     ADC::stop();
     EM.add(Error::ConversionAborted);
+
+    chMBReset(&conversionMB);
+    run_status = RunStatus::Idle;
 }
 
 THD_FUNCTION(conversionThread, arg)
@@ -294,14 +281,26 @@ THD_FUNCTION(conversionThread, arg)
     (void)arg;
 
     while (1) {
+        // Recover from algorithm fault if necessary
+        if (run_status == RunStatus::Recovering)
+            conversion_abort();
+
         msg_t message;
         if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK) {
-            auto samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
-            auto size = samplesIn.size() / 2;
+            static Sample *samples = nullptr;
+            static unsigned int size = 0;
+            samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
+            size = samplesIn.size() / 2;
 
             if (elf_entry) {
                 if (!MSG_FOR_MEASURE(message)) {
-                    samples = elf_entry(samples, size);
+                    //asm("cpsid i");
+                    //mpuDisable();
+                    //port_unprivileged_jump((uint32_t)+[] {
+                        samples = elf_entry(samples, size);
+                    //}, 0xF800);
+                    //mpuEnable(MPU_CTRL_PRIVDEFENA);
+                    //asm("cpsie i");
                 } else {
                     chTMStartMeasurementX(&conversion_time_measurement);
                     samples = elf_entry(samples, size);
@@ -369,33 +368,34 @@ extern "C" {
 __attribute__((naked))
 void HardFault_Handler()
 {
+    // Below not working (yet)
     while (1);
-//    //asm("push {lr}");
-//
-//    uint32_t *stack;
-//    uint32_t lr;
-//	asm("\
-//		tst lr, #4; \
-//		ite eq; \
-//		mrseq %0, msp; \
-//		mrsne %0, psp; \
-//        mov %1, lr; \
-//	" : "=r" (stack), "=r" (lr));
-//    //stack++;
-//    stack[7] |= (1 << 24); // Keep Thumb mode enabled
-//
-//    conversion_abort();
-//
-//    // TODO test lr and decide how to recover
-//
-//    //if (run_status == RunStatus::Converting) {
-//        stack[6] = stack[5];   // Escape from elf_entry code
-//    //} else /*if (run_status == RunStatus::Recovered)*/ {
-//    //    stack[6] = (uint32_t)main_loop & ~1; // Return to safety
-//    //}
-//
-//    //asm("pop {lr}; bx lr");
-//    asm("bx lr");
+
+    // 1. Get the stack pointer
+    uint32_t *stack;
+    uint32_t lr;
+	asm("\
+		tst lr, #4; \
+		ite eq; \
+		mrseq %0, msp; \
+		mrsne %0, psp; \
+        mov %1, lr; \
+	" : "=r" (stack), "=r" (lr));
+
+    // 2. Only attempt to recover from failed algorithm code
+    if ((lr & 4) == 0 || run_status != RunStatus::Running)
+        while (1);
+
+    // 3. Post the failure and unload algorithm
+    elf_entry = nullptr;
+    EM.add(Error::ConversionAborted);
+    run_status = RunStatus::Recovering;
+
+    // 4. Make this exception return to point after algorithm exec.
+    stack[6] = stack[5];
+    stack[7] |= (1 << 24); // Ensure Thumb mode stays enabled
+
+    asm("mov lr, %0; bx lr" :: "r" (lr));
 }
 
 } // extern "C"
