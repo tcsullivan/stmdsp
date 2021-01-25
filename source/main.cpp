@@ -75,6 +75,8 @@ int main()
     halInit();
     chSysInit();
 
+    palSetLineMode(LINE_BUTTON, PAL_MODE_INPUT);
+
     // Enable FPU
     SCB->CPACR |= 0xF << 20;
 
@@ -352,6 +354,18 @@ THD_FUNCTION(Thread1, arg)
         chThdSleepMilliseconds(delay);
         palClearLine(led);
         chThdSleepMilliseconds(delay);
+
+        if (run_status == RunStatus::Idle && palReadLine(LINE_BUTTON)) {
+            palSetLine(LINE_LED_RED);
+            palSetLine(LINE_LED_YELLOW);
+            asm("cpsid i");
+            while (!palReadLine(LINE_BUTTON))
+                asm("nop");
+            asm("cpsie i");
+            palClearLine(LINE_LED_RED);
+            palClearLine(LINE_LED_YELLOW);
+            chThdSleepMilliseconds(500);
+        }
 
         if (auto err = EM.hasError(); err ^ erroron) {
             erroron = err;

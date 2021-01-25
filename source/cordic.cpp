@@ -12,71 +12,79 @@ static void prepare() {
     while (CORDIC->CSR & CORDIC_CSR_RRDY)
         asm("mov r0, %0" :: "r" (CORDIC->RDATA));
 }
-static uint32_t dtoq(double in) {
-    double res = in * 0x7FFFFFFF;
-    int32_t resi = res;
-    return resi;
-}
-static double qtod(uint32_t in) {
-    int32_t ini = in;
-    double res = ini;
-    return res / 0x7FFFFFFF;
-}
 
+static uint32_t dtoq(double) {
+    uint32_t res;
+    asm("vcvt.s32.f64 d0, d0, #31;"
+        "vmov %0, r5, d0"
+    : "=r" (res));
+    return res;
+}
 __attribute__((naked))
-double mod(double n, double) {
+static double qtod(uint32_t) {
+    asm("eor r1, r1;"
+        "vmov d0, r0, r1;"
+        "vcvt.f64.s32 d0, d0, #31;"
+        "bx lr");
+    return 0;
+}
+__attribute__((naked))
+double mod(double, double) {
     asm("vdiv.f64   d2, d0, d1;"
         "vrintz.f64 d2;"
         "vmul.f64   d1, d1, d2;"
         "vsub.f64   d0, d0, d1;"
         "bx lr");
-    return n;
+    return 0;
 }
 
 double cos(double x) {
-    x = (mod(x, 2 * math::PI) - math::PI) / math::PI;
+    x = mod(x, 2 * math::PI) / math::PI;
+    auto input = dtoq(x > 1. ? x - 2 : x);
+
     prepare();
     CORDIC->CSR = CORDIC_CSR_NARGS | CORDIC_CSR_NRES |
                   (6 << CORDIC_CSR_PRECISION_Pos) |
                   (0 << CORDIC_CSR_FUNC_Pos);
 
-    auto in = dtoq(x);
-    CORDIC->WDATA = in;
-    CORDIC->WDATA = in & 0x7FFFFFFF;
+    CORDIC->WDATA = input;
+    CORDIC->WDATA = input;
     while (!(CORDIC->CSR & CORDIC_CSR_RRDY));
 
     double cosx = qtod(CORDIC->RDATA) / x;
-    in = CORDIC->RDATA;
+    [[maybe_unused]] auto sinx = CORDIC->RDATA;
     return cosx;
 }
 
 double sin(double x) {
-    x = (mod(x, 2 * math::PI) - math::PI) / math::PI;
+    x = mod(x, 2 * math::PI) / math::PI;
+    auto input = dtoq(x > 1. ? x - 2 : x);
+
     prepare();
     CORDIC->CSR = CORDIC_CSR_NARGS | CORDIC_CSR_NRES |
                   (6 << CORDIC_CSR_PRECISION_Pos) |
                   (1 << CORDIC_CSR_FUNC_Pos);
 
-    auto in = dtoq(x);
-    CORDIC->WDATA = in;
-    CORDIC->WDATA = in & 0x7FFFFFFF;
+    CORDIC->WDATA = input;
+    CORDIC->WDATA = input;
     while (!(CORDIC->CSR & CORDIC_CSR_RRDY));
 
     double sinx = qtod(CORDIC->RDATA) / x;
-    in = CORDIC->RDATA;
+    [[maybe_unused]] auto cosx = CORDIC->RDATA;
     return sinx;
 }
 
 double tan(double x) {
-    x = (mod(x, 2 * math::PI) - math::PI) / math::PI;
+    x = mod(x, 2 * math::PI) / math::PI;
+    auto input = dtoq(x > 1. ? x - 2 : x);
+
     prepare();
     CORDIC->CSR = CORDIC_CSR_NARGS | CORDIC_CSR_NRES |
                   (6 << CORDIC_CSR_PRECISION_Pos) |
                   (1 << CORDIC_CSR_FUNC_Pos);
 
-    auto in = dtoq(x);
-    CORDIC->WDATA = in;
-    CORDIC->WDATA = in & 0x7FFFFFFF;
+    CORDIC->WDATA = input;
+    CORDIC->WDATA = input;
     while (!(CORDIC->CSR & CORDIC_CSR_RRDY));
 
     double sinx = qtod(CORDIC->RDATA) / x;
@@ -85,9 +93,9 @@ double tan(double x) {
 }
 
 __attribute__((naked))
-double sqrt(double x) {
+double sqrt(double) {
     asm("vsqrt.f64 d0, d0; bx lr");
-    return x;
+    return 0.;
 }
 
 }
