@@ -15,13 +15,12 @@
 static_assert(sizeof(adcsample_t) == sizeof(uint16_t));
 static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 
-#include "common.hpp"
-#include "error.hpp"
-
 #include "adc.hpp"
 #include "cordic.hpp"
 #include "dac.hpp"
 #include "elf_load.hpp"
+#include "error.hpp"
+#include "samplebuffer.hpp"
 #include "sclock.hpp"
 #include "usbserial.hpp"
 
@@ -45,29 +44,43 @@ static RunStatus run_status = RunStatus::Idle;
 #define MSG_FOR_FIRST(m)   (m & 1)
 #define MSG_FOR_MEASURE(m) (m > 2)
 
-static msg_t conversionMBBuffer[4];
-static MAILBOX_DECL(conversionMB, conversionMBBuffer, 4);
-
-static THD_WORKING_AREA(conversionThreadWA, 2048);
-static THD_FUNCTION(conversionThread, arg);
-
-static time_measurement_t conversion_time_measurement;
-
 static ErrorManager EM;
 
+static msg_t conversionMBBuffer[2];
+static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
+
+// Thread for LED status and wakeup hold
+static THD_WORKING_AREA(monitorThreadWA, 128);
+static THD_FUNCTION(monitorThread, arg);
+// Thread for managing the conversion task
+static THD_WORKING_AREA(conversionThreadMonitorWA, 128);
+static THD_FUNCTION(conversionThreadMonitor, arg);
+// Thread for unprivileged algorithm execution
+static THD_WORKING_AREA(conversionThreadWA, 128);
+static THD_FUNCTION(conversionThread, arg);
+__attribute__((section(".convdata")))
+static THD_WORKING_AREA(conversionThreadUPWA, 256);
+
+static thread_t *conversionThreadHandle = nullptr;
+__attribute__((section(".convdata")))
+static thread_t *conversionThreadMonitorHandle = nullptr;
+
+__attribute__((section(".convdata")))
+static time_measurement_t conversion_time_measurement;
+__attribute__((section(".convdata")))
 static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000)); // 16k
+__attribute__((section(".convdata")))
 static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x30004000)); // 16k
+
 static SampleBuffer samplesSigGen (reinterpret_cast<Sample *>(0x30000000)); // 16k
 
 static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
+__attribute__((section(".convdata")))
 static ELF::Entry elf_entry = nullptr;
 
 static void signal_operate(adcsample_t *buffer, size_t count);
 static void signal_operate_measure(adcsample_t *buffer, size_t count);
 static void main_loop();
-
-static THD_WORKING_AREA(waThread1, 128);
-static THD_FUNCTION(Thread1, arg);
 
 int main()
 {
@@ -80,6 +93,26 @@ int main()
     // Enable FPU
     SCB->CPACR |= 0xF << 20;
 
+    // Set up MPU for user algorithm
+    // Region 2: Data for algorithm manager thread
+    mpuConfigureRegion(MPU_REGION_2,
+                       0x20000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_4K |
+                       MPU_RASR_ENABLE);
+    // Region 3: Code for algorithm manager thread
+    mpuConfigureRegion(MPU_REGION_3,
+                       0x08080000,
+                       MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_4K |
+                       MPU_RASR_ENABLE);
+    // Region 4: Algorithm code
+    mpuConfigureRegion(MPU_REGION_4,
+                       0x00000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_64K |
+                       MPU_RASR_ENABLE);
+
     ADC::begin();
     DAC::begin();
     SClock::begin();
@@ -90,9 +123,14 @@ int main()
     ADC::setRate(SClock::Rate::R32K);
 
     chTMObjectInit(&conversion_time_measurement);
-    chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, nullptr);
-    chThdCreateStatic(conversionThreadWA, sizeof(conversionThreadWA),
-                      NORMALPRIO, conversionThread, nullptr);
+    chThdCreateStatic(monitorThreadWA, sizeof(monitorThreadWA),
+                      NORMALPRIO, monitorThread, nullptr);
+    conversionThreadMonitorHandle = chThdCreateStatic(
+                      conversionThreadMonitorWA, sizeof(conversionThreadMonitorWA),
+                      NORMALPRIO, conversionThreadMonitor, nullptr);
+    conversionThreadHandle = chThdCreateStatic(
+                      conversionThreadWA, sizeof(conversionThreadWA),
+                      NORMALPRIO + 1, conversionThread, nullptr);
 
     main_loop();
 }
@@ -278,35 +316,47 @@ void conversion_abort()
     run_status = RunStatus::Idle;
 }
 
+THD_FUNCTION(conversionThreadMonitor, arg)
+{
+    (void)arg;
+    while (1) {
+        // Recover from algorithm fault if necessary
+        //if (run_status == RunStatus::Recovering)
+        //    conversion_abort();
+
+        msg_t message;
+        if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK)
+            chMsgSend(conversionThreadHandle, message);
+    }
+}
+
+__attribute__((section(".convcode")))
+static void convThdMain();
+
 THD_FUNCTION(conversionThread, arg)
 {
     (void)arg;
+    elf_entry = nullptr;
+    port_unprivileged_jump(reinterpret_cast<uint32_t>(convThdMain),
+                           reinterpret_cast<uint32_t>(conversionThreadUPWA) + 256);
+}
 
+void convThdMain()
+{
     while (1) {
-        // Recover from algorithm fault if necessary
-        if (run_status == RunStatus::Recovering)
-            conversion_abort();
-
         msg_t message;
-        if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK) {
-            static Sample *samples = nullptr;
-            static unsigned int size = 0;
-            samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
-            size = samplesIn.size() / 2;
+        asm("svc 0; mov %0, r0" : "=r" (message));
+        if (message != 0) {
+            auto samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
+            auto size = samplesIn.size() / 2;
 
             if (elf_entry) {
                 if (!MSG_FOR_MEASURE(message)) {
-                    //asm("cpsid i");
-                    //mpuDisable();
-                    //port_unprivileged_jump((uint32_t)+[] {
-                        samples = elf_entry(samples, size);
-                    //}, 0xF800);
-                    //mpuEnable(MPU_CTRL_PRIVDEFENA);
-                    //asm("cpsie i");
-                } else {
-                    chTMStartMeasurementX(&conversion_time_measurement);
                     samples = elf_entry(samples, size);
-                    chTMStopMeasurementX(&conversion_time_measurement);
+                } else {
+                    //chTMStartMeasurementX(&conversion_time_measurement);
+                    samples = elf_entry(samples, size);
+                    //chTMStopMeasurementX(&conversion_time_measurement);
                 } 
             }
 
@@ -340,7 +390,7 @@ void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
     ADC::setOperation(signal_operate);
 }
 
-THD_FUNCTION(Thread1, arg)
+THD_FUNCTION(monitorThread, arg)
 {
     (void)arg;
 
@@ -378,6 +428,29 @@ THD_FUNCTION(Thread1, arg)
 }
 
 extern "C" {
+
+__attribute__((naked))
+void port_syscall(struct port_extctx *ctxp, uint32_t n)
+{
+    switch (n) {
+    case 0: {
+        chSysLock();
+        chMsgWaitS();
+        auto msg = chMsgGet(conversionThreadMonitorHandle);
+        chMsgReleaseS(conversionThreadMonitorHandle, MSG_OK);
+        //chSchDoYieldS();
+        chSysUnlock();
+        ctxp->r0 = msg;
+            }
+        break;
+    default:
+        while (1);
+        break;
+    }
+
+    asm("svc 0");
+    while (1);
+}
 
 __attribute__((naked))
 void HardFault_Handler()
