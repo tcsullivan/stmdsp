@@ -67,6 +67,7 @@ namespace stmdsp
         void siggen_upload(dacsample_t *buffer, unsigned int size);
         void siggen_start();
         void siggen_stop();
+        bool is_siggening() const { return m_is_siggening; }
 
         // buffer is ELF binary
         void upload_filter(unsigned char *buffer, size_t size);
@@ -75,6 +76,7 @@ namespace stmdsp
     private:
         serial::Serial m_serial;
         unsigned int m_buffer_size = SAMPLES_MAX;
+        bool m_is_siggening = false;
     };
 }
 

@@ -61,7 +61,9 @@ public:
     void onMeasureTimer(wxTimerEvent& te);
 
 private:
+    // Set to true if connected and running
     bool m_is_running = false;
+
     wxComboBox *m_device_combo = nullptr;
     wxStyledTextCtrl *m_text_editor = nullptr;
     wxTextCtrl *m_compile_output = nullptr;
@@ -71,17 +73,30 @@ private:
     wxStatusBar *m_status_bar = nullptr;
     wxMenuBar *m_menu_bar = nullptr;
     wxComboBox *m_rate_select = nullptr;
+
+    // File handle for logging output samples
+    // Not null when logging is enabled
     wxFileOutputStream *m_conv_result_log = nullptr;
+    // File path of currently opened file
+    // Empty if new file
     wxString m_open_file_path;
+    // File path for temporary files (e.g. compiled ELF)
+    // Set by compile action
     wxString m_temp_file_name;
 
+    // Device interface
+    // Not null if connected
     stmdsp::device *m_device = nullptr;
+    // WAV data for signal generator
+    // Not null when a WAV is loaded
     wav::clip *m_wav_clip = nullptr;
 
     bool tryDevice();
     void prepareEditor();
     wxString compileEditorCode();
     wxMenu *loadTemplates();
+    // Updates control availabilities based on device connection
+    void updateMenuOptions();
 };
 
 #endif // WXMAIN_HPP_

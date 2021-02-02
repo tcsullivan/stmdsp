@@ -101,7 +101,6 @@ enum Id {
     MRunUpload,
     MRunUnload,
     MRunEditBSize,
-    MRunEditSRate,
     MRunGenUpload,
     MRunGenStart,
     MCodeCompile,
@@ -110,127 +109,156 @@ enum Id {
 
 MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50), wxSize(640, 800))
 {
-    auto splitter = new wxSplitterWindow(this, wxID_ANY);
+    // Main frame structure:
+    // Begin with a main splitter for the code and terminal panes
+    auto mainSplitter = new wxSplitterWindow(this, wxID_ANY);
+    auto panelCode    = new wxPanel(mainSplitter, wxID_ANY);
+    auto panelOutput  = new wxPanel(mainSplitter, wxID_ANY);
+    // Additional panel for the toolbar
     auto panelToolbar = new wxPanel(this, wxID_ANY);
-    auto panelCode = new wxPanel(splitter, wxID_ANY);
-    auto panelOutput = new wxPanel(splitter, wxID_ANY);
+    // Sizers for the controls
     auto sizerToolbar = new wxBoxSizer(wxHORIZONTAL);
-    auto sizerCode = new wxBoxSizer(wxVERTICAL);
-    auto sizerOutput = new wxBoxSizer(wxVERTICAL);
-    auto sizerSplitter = new wxBoxSizer(wxVERTICAL);
+    auto sizerCode    = new wxBoxSizer(wxVERTICAL);
+    auto sizerOutput  = new wxBoxSizer(wxVERTICAL);
+    auto sizerMain    = new wxBoxSizer(wxVERTICAL);
+    // Menu objects
     auto menuFile = new wxMenu;
-    auto menuRun = new wxMenu;
+    auto menuRun  = new wxMenu;
     auto menuCode = new wxMenu;
 
     // Member initialization
-    m_status_bar = new wxStatusBar(this);
-    m_text_editor = new wxStyledTextCtrl(panelCode, wxID_ANY, wxDefaultPosition, wxSize(620, 440));
-    m_compile_output = new wxTextCtrl(panelOutput, wxID_ANY, wxEmptyString, wxDefaultPosition,
-                                      wxSize(620, 250), wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL);
-    m_measure_timer = new wxTimer(this, Id::MeasureTimer);
-    m_menu_bar = new wxMenuBar;
-
-    m_status_bar->SetStatusText("Ready.");
-    SetStatusBar(m_status_bar);
-
-    splitter->SetSashGravity(0.5);
-    splitter->SetMinimumPaneSize(20);
-
-    auto comp = new wxButton(panelToolbar, Id::MCodeCompile, "Compile");
-    m_rate_select = new wxComboBox(panelToolbar, wxID_ANY,
-                                   wxEmptyString, wxDefaultPosition, wxDefaultSize,
-                                   srateValues.size(), srateValues.data(), wxCB_READONLY);
-    m_rate_select->Disable();
-
-    sizerToolbar->Add(comp, 0, wxLEFT, 4);
-    sizerToolbar->Add(m_rate_select, 0, wxLEFT, 12);
-    panelToolbar->SetSizer(sizerToolbar);
-    Bind(wxEVT_BUTTON, &MainFrame::onRunCompile, this, Id::MCodeCompile, wxID_ANY, comp);
-    Bind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY, wxID_ANY, m_rate_select);
-
-    prepareEditor();
-    sizerCode->Add(panelToolbar, 0, wxTOP | wxBOTTOM, 4);
-    sizerCode->Add(m_text_editor, 1, wxEXPAND, 0);
-    panelCode->SetSizer(sizerCode);
-
-    m_compile_output->SetBackgroundColour(wxColour(0, 0, 0));
-    m_compile_output->SetDefaultStyle(wxTextAttr(*wxWHITE, *wxBLACK, wxFont("Hack")));
-    sizerOutput->Add(m_compile_output, 1, wxEXPAND | wxALL, 0);
-    panelOutput->SetSizer(sizerOutput);
-
-    splitter->SplitHorizontally(panelCode, panelOutput, 440);
-
-    sizerSplitter->Add(splitter, 1, wxEXPAND, 5);
-    SetSizer(sizerSplitter);
-    sizerSplitter->SetSizeHints(this);
-
-    Bind(wxEVT_TIMER, &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
-
-    Bind(wxEVT_MENU, &MainFrame::onFileNew, this, Id::MFileNew, wxID_ANY,
-         menuFile->Append(MFileNew, "&New"));
-    Bind(wxEVT_MENU, &MainFrame::onFileOpen, this, Id::MFileOpen, wxID_ANY,
-         menuFile->Append(MFileOpen, "&Open"));
-
-    menuFile->Append(MFileOpenTemplate, "Open &Template", loadTemplates());
-
-    Bind(wxEVT_MENU, &MainFrame::onFileSave, this, Id::MFileSave, wxID_ANY,
-         menuFile->Append(MFileSave, "&Save"));
-    Bind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs, wxID_ANY,
-         menuFile->Append(MFileSaveAs, "Save &As"));
-    menuFile->AppendSeparator();
-    Bind(wxEVT_MENU, &MainFrame::onFileQuit, this, Id::MFileQuit, wxID_ANY,
-         menuFile->Append(MFileQuit, "&Quit"));
-
-    Bind(wxEVT_MENU, &MainFrame::onRunConnect, this, Id::MRunConnect, wxID_ANY,
-         menuRun->Append(MRunConnect, "&Connect"));
-    menuRun->AppendSeparator();
-    Bind(wxEVT_MENU, &MainFrame::onRunStart, this, Id::MRunStart, wxID_ANY,
-         menuRun->Append(MRunStart, "&Start"));
-    m_run_measure = menuRun->AppendCheckItem(MRunMeasure, "&Measure code time");
-    Bind(wxEVT_MENU, &MainFrame::onRunLogResults, this, Id::MRunLogResults, wxID_ANY,
-         menuRun->AppendCheckItem(MRunLogResults, "&Log results..."));
-    menuRun->AppendSeparator();
-    Bind(wxEVT_MENU, &MainFrame::onRunUpload, this, Id::MRunUpload, wxID_ANY,
-         menuRun->Append(MRunUpload, "&Upload code"));
-    Bind(wxEVT_MENU, &MainFrame::onRunUnload, this, Id::MRunUnload, wxID_ANY,
-         menuRun->Append(MRunUnload, "U&nload code"));
-    Bind(wxEVT_MENU, &MainFrame::onRunEditBSize, this, Id::MRunEditBSize, wxID_ANY,
-         menuRun->Append(MRunEditBSize, "Set &buffer size..."));
-
-    menuRun->AppendSeparator();
-    Bind(wxEVT_MENU, &MainFrame::onRunGenUpload, this, Id::MRunGenUpload, wxID_ANY,
-         menuRun->Append(MRunGenUpload, "&Load signal generator..."));
-    Bind(wxEVT_MENU, &MainFrame::onRunGenStart, this, Id::MRunGenStart, wxID_ANY,
-         menuRun->AppendCheckItem(MRunGenStart, "Start &generator"));
-
-    Bind(wxEVT_MENU, &MainFrame::onRunCompile, this, Id::MCodeCompile, wxID_ANY,
-         menuCode->Append(MCodeCompile, "&Compile code"));
-    Bind(wxEVT_MENU, &MainFrame::onCodeDisassemble, this, Id::MCodeDisassemble, wxID_ANY,
-         menuCode->Append(MCodeDisassemble, "Show &Disassembly"));
-
-    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent, this, wxID_ANY);
+    m_status_bar     = new wxStatusBar(this);
+    m_text_editor    = new wxStyledTextCtrl(panelCode, wxID_ANY,
+                                            wxDefaultPosition, wxSize(620, 440));
+    m_compile_output = new wxTextCtrl(panelOutput, wxID_ANY,
+                                      wxEmptyString,
+                                      wxDefaultPosition, wxSize(620, 250),
+                                      wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL);
+    m_measure_timer  = new wxTimer(this, Id::MeasureTimer);
+    m_menu_bar       = new wxMenuBar;
+    m_rate_select    = new wxComboBox(panelToolbar, wxID_ANY,
+                                      wxEmptyString,
+                                      wxDefaultPosition, wxDefaultSize,
+                                      srateValues.size(), srateValues.data(),
+                                      wxCB_READONLY);
 
     m_menu_bar->Append(menuFile, "&File");
     m_menu_bar->Append(menuRun, "&Run");
     m_menu_bar->Append(menuCode, "&Code");
     SetMenuBar(m_menu_bar);
+
+    // Toolbar initialization
+    auto comp = new wxButton(panelToolbar, Id::MCodeCompile, "Compile");
+    sizerToolbar->Add(comp, 0, wxLEFT, 4);
+    sizerToolbar->Add(m_rate_select, 0, wxLEFT, 12);
+    panelToolbar->SetSizer(sizerToolbar);
+
+    // Code panel init.
+    prepareEditor();
+    sizerCode->Add(panelToolbar, 0, wxTOP | wxBOTTOM, 4);
+    sizerCode->Add(m_text_editor, 1, wxEXPAND, 0);
+    panelCode->SetSizer(sizerCode);
+
+    // Output panel init.
+    m_compile_output->SetBackgroundColour(wxColour(0, 0, 0));
+    m_compile_output->SetDefaultStyle(wxTextAttr(*wxWHITE, *wxBLACK, wxFont("Hack")));
+    sizerOutput->Add(m_compile_output, 1, wxEXPAND | wxALL, 0);
+    panelOutput->SetSizer(sizerOutput);
+
+    // Main splitter init.
+    mainSplitter->SetSashGravity(0.5);
+    mainSplitter->SetMinimumPaneSize(20);
+    mainSplitter->SplitHorizontally(panelCode, panelOutput, 440);
+    sizerMain->Add(mainSplitter, 1, wxEXPAND, 5);
+    sizerMain->SetSizeHints(this);
+    SetSizer(sizerMain);
+
+    m_status_bar->SetStatusText("Ready.");
+    SetStatusBar(m_status_bar);
+
+    // Binds:
+
+    // General
+    Bind(wxEVT_TIMER,        &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
+    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,   this, wxID_ANY);
+
+    // Toolbar actions
+    Bind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, Id::MCodeCompile, wxID_ANY, comp);
+    Bind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY,         wxID_ANY, m_rate_select);
+
+
+    // File menu actions
+    Bind(wxEVT_MENU, &MainFrame::onFileNew,    this, Id::MFileNew,    wxID_ANY, menuFile->Append(MFileNew, "&New"));
+    Bind(wxEVT_MENU, &MainFrame::onFileOpen,   this, Id::MFileOpen,   wxID_ANY, menuFile->Append(MFileOpen, "&Open"));
+    menuFile->Append(MFileOpenTemplate, "Open &Template", loadTemplates());
+    Bind(wxEVT_MENU, &MainFrame::onFileSave,   this, Id::MFileSave,   wxID_ANY, menuFile->Append(MFileSave, "&Save"));
+    Bind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs, wxID_ANY, menuFile->Append(MFileSaveAs, "Save &As"));
+    menuFile->AppendSeparator();
+    Bind(wxEVT_MENU, &MainFrame::onFileQuit,   this, Id::MFileQuit,   wxID_ANY, menuFile->Append(MFileQuit, "&Quit"));
+
+    // Run menu actions
+    Bind(wxEVT_MENU, &MainFrame::onRunConnect,    this, Id::MRunConnect,    wxID_ANY, menuRun->Append(MRunConnect, "&Connect"));
+    menuRun->AppendSeparator();
+    Bind(wxEVT_MENU, &MainFrame::onRunStart,      this, Id::MRunStart,      wxID_ANY, menuRun->Append(MRunStart, "&Start"));
+    m_run_measure = menuRun->AppendCheckItem(MRunMeasure, "&Measure code time");
+    Bind(wxEVT_MENU, &MainFrame::onRunLogResults, this, Id::MRunLogResults, wxID_ANY, menuRun->AppendCheckItem(MRunLogResults, "&Log results..."));
+    menuRun->AppendSeparator();
+    Bind(wxEVT_MENU, &MainFrame::onRunUpload,     this, Id::MRunUpload,     wxID_ANY, menuRun->Append(MRunUpload, "&Upload code"));
+    Bind(wxEVT_MENU, &MainFrame::onRunUnload,     this, Id::MRunUnload,     wxID_ANY, menuRun->Append(MRunUnload, "U&nload code"));
+    Bind(wxEVT_MENU, &MainFrame::onRunEditBSize,  this, Id::MRunEditBSize,  wxID_ANY, menuRun->Append(MRunEditBSize, "Set &buffer size..."));
+    menuRun->AppendSeparator();
+    Bind(wxEVT_MENU, &MainFrame::onRunGenUpload,  this, Id::MRunGenUpload,  wxID_ANY, menuRun->Append(MRunGenUpload, "&Load signal generator..."));
+    Bind(wxEVT_MENU, &MainFrame::onRunGenStart,   this, Id::MRunGenStart,   wxID_ANY, menuRun->AppendCheckItem(MRunGenStart, "Start &generator"));
+
+    // Code menu actions
+    Bind(wxEVT_MENU, &MainFrame::onRunCompile,      this, Id::MCodeCompile,     wxID_ANY, menuCode->Append(MCodeCompile, "&Compile code"));
+    Bind(wxEVT_MENU, &MainFrame::onCodeDisassemble, this, Id::MCodeDisassemble, wxID_ANY, menuCode->Append(MCodeDisassemble, "Show &Disassembly"));
+    menuCode->AppendSeparator();
+
+    updateMenuOptions();
 }
 
+// Closes the window
+// Needs to clean things up
 void MainFrame::onCloseEvent(wxCloseEvent& event)
 {
-    SetMenuBar(nullptr);
-    m_menu_bar->Remove(2);
-    m_menu_bar->Remove(1);
-    m_menu_bar->Remove(0);
-    delete m_menu_bar;
-    delete m_measure_timer;
+    //SetMenuBar(nullptr);
+    //delete m_menu_bar->Remove(2);
+    //delete m_menu_bar->Remove(1);
+    //delete m_menu_bar->Remove(0);
+    //delete m_menu_bar;
+    //delete m_measure_timer;
+
+    //Unbind(wxEVT_TIMER,        &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
+    //Unbind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,   this, wxID_ANY);
+    //Unbind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, Id::MCodeCompile, wxID_ANY);
+    //Unbind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY,         wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onFileNew,    this, Id::MFileNew,    wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onFileOpen,   this, Id::MFileOpen,   wxID_ANY);
+    ////menuFile->Append(MFileOpenTemplate, "Open &Template", loadTemplates());
+    //Unbind(wxEVT_MENU, &MainFrame::onFileSave,   this, Id::MFileSave,   wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs, wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onFileQuit,   this, Id::MFileQuit,   wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunConnect,    this, Id::MRunConnect,    wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunStart,      this, Id::MRunStart,      wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunLogResults, this, Id::MRunLogResults, wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunUpload,     this, Id::MRunUpload,     wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunUnload,     this, Id::MRunUnload,     wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunEditBSize,  this, Id::MRunEditBSize,  wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunGenUpload,  this, Id::MRunGenUpload,  wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunGenStart,   this, Id::MRunGenStart,   wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onRunCompile,      this, Id::MCodeCompile,     wxID_ANY);
+    //Unbind(wxEVT_MENU, &MainFrame::onCodeDisassemble, this, Id::MCodeDisassemble, wxID_ANY);
 
     event.Skip();
 }
 
-void MainFrame::onMeasureTimer([[maybe_unused]] wxTimerEvent&)
+// Measure timer tick handler
+// Only called while connected and running.
+void MainFrame::onMeasureTimer(wxTimerEvent&)
 {
-    if (m_conv_result_log != nullptr) {
+    if (m_conv_result_log) {
+        // We're meant to log
         if (auto samples = m_device->continuous_read(); samples.size() > 0) {
             for (auto& s : samples) {
                 auto str = std::to_string(s);
@@ -239,7 +267,8 @@ void MainFrame::onMeasureTimer([[maybe_unused]] wxTimerEvent&)
         }
     }
 
-    if (m_wav_clip != nullptr) {
+    if (m_wav_clip) {
+        // Stream out next WAV chunk
         auto size = m_device->get_buffer_size();
         auto chunk = new stmdsp::adcsample_t[size];
         auto src = reinterpret_cast<uint16_t *>(m_wav_clip->next(size));
@@ -249,7 +278,8 @@ void MainFrame::onMeasureTimer([[maybe_unused]] wxTimerEvent&)
         delete[] chunk;
     }
 
-    if (m_status_bar && m_run_measure && m_run_measure->IsChecked()) {
+    if (m_run_measure->IsChecked()) {
+        // Show execution time
         m_status_bar->SetStatusText(wxString::Format(wxT("Execution time: %u cycles"),
                                                      m_device->continuous_start_get_measurement()));
     }
@@ -300,8 +330,8 @@ wxString MainFrame::compileEditorCode()
 
     wxFile file (m_temp_file_name, wxFile::write);
     wxString file_text (file_header);
-    file_text.Replace("$0", std::to_string(m_device != nullptr ? m_device->get_buffer_size()
-                                                               : stmdsp::SAMPLES_MAX));
+    file_text.Replace("$0", std::to_string(m_device ? m_device->get_buffer_size()
+                                                    : stmdsp::SAMPLES_MAX));
     file.Write(wxString(file_text) + m_text_editor->GetText());
     file.Close();
 
@@ -331,7 +361,7 @@ wxString MainFrame::compileEditorCode()
     }
 }
 
-void MainFrame::onFileNew([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onFileNew(wxCommandEvent&)
 {
     m_open_file_path = "";
     m_text_editor->SetText(file_content);
@@ -339,7 +369,7 @@ void MainFrame::onFileNew([[maybe_unused]] wxCommandEvent&)
     m_status_bar->SetStatusText("Ready.");
 }
 
-void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onFileOpen(wxCommandEvent&)
 {
     wxFileDialog openDialog(this, "Open filter file", "", "",
                             "C++ source file (*.cpp)|*.cpp",
@@ -356,9 +386,15 @@ void MainFrame::onFileOpen([[maybe_unused]] wxCommandEvent&)
                 m_text_editor->DiscardEdits();
                 m_compile_output->ChangeValue("");
                 m_status_bar->SetStatusText("Ready.");
+            } else {
+                m_status_bar->SetStatusText("Failed to read file contents.");
             }
             delete[] buffer;
+        } else {
+            m_status_bar->SetStatusText("Failed to open file.");
         }
+    } else {
+        m_status_bar->SetStatusText("Ready.");
     }
 }
 
@@ -375,8 +411,12 @@ void MainFrame::onFileOpenTemplate(wxCommandEvent& event)
             m_text_editor->SetText(buffer);
             //m_text_editor->DiscardEdits();
             m_status_bar->SetStatusText("Ready.");
+        } else {
+            m_status_bar->SetStatusText("Failed to read file contents.");
         }
         delete[] buffer;
+    } else {
+        m_status_bar->SetStatusText("Ready.");
     }
 }
 
@@ -401,7 +441,7 @@ void MainFrame::onFileSave(wxCommandEvent& ce)
     }
 }
 
-void MainFrame::onFileSaveAs([[maybe_unused]] wxCommandEvent& ce)
+void MainFrame::onFileSaveAs(wxCommandEvent&)
 {
     if (m_text_editor->IsModified()) {
         wxFileDialog saveDialog(this, "Save filter file", "", "",
@@ -424,7 +464,7 @@ void MainFrame::onFileSaveAs([[maybe_unused]] wxCommandEvent& ce)
     }
 }
 
-void MainFrame::onFileQuit([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onFileQuit(wxCommandEvent&)
 {
     Close(true);
 }
@@ -433,15 +473,15 @@ void MainFrame::onRunConnect(wxCommandEvent& ce)
 {
     auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
 
-    if (m_device == nullptr) {
+    if (!m_device) {
         stmdsp::scanner scanner;
         if (auto devices = scanner.scan(); devices.size() > 0) {
             m_device = new stmdsp::device(devices.front());
             if (m_device->connected()) {
                 auto rate = m_device->get_sample_rate();
                 m_rate_select->SetSelection(rate);
-                m_rate_select->Enable();
 
+                updateMenuOptions();
                 menuItem->SetItemLabel("&Disconnect");
                 m_status_bar->SetStatusText("Connected.");
             } else {
@@ -457,7 +497,7 @@ void MainFrame::onRunConnect(wxCommandEvent& ce)
     } else {
         delete m_device;
         m_device = nullptr;
-        m_rate_select->Disable();
+        updateMenuOptions();
         menuItem->SetItemLabel("&Connect");
         m_status_bar->SetStatusText("Disconnected.");
     }
@@ -468,26 +508,23 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
     auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
 
     if (!m_is_running) {
-        if (m_device != nullptr && m_device->connected()) {
-            if (m_run_measure && m_run_measure->IsChecked()) {
-                m_device->continuous_start_measure();
-                m_measure_timer->StartOnce(1000);
-            } else if (m_wav_clip != nullptr) {
-                m_device->continuous_start();
+        if (m_run_measure->IsChecked()) {
+            m_device->continuous_start_measure();
+            m_measure_timer->StartOnce(1000);
+        } else {
+            if (m_device->is_siggening() && m_wav_clip) {
                 m_measure_timer->Start(m_device->get_buffer_size() * 500 / 
                                        srateNums[m_rate_select->GetSelection()]);
-            } else {
-                m_device->continuous_start();
+            } else if (m_conv_result_log) {
                 m_measure_timer->Start(15);
             }
 
-            menuItem->SetItemLabel("&Stop");
-            m_status_bar->SetStatusText("Running.");
-            m_is_running = true;
-        } else {
-            wxMessageBox("No device connected!", "Run", wxICON_WARNING);
-            m_status_bar->SetStatusText("Please connect.");
+            m_device->continuous_start();
         }
+
+        menuItem->SetItemLabel("&Stop");
+        m_status_bar->SetStatusText("Running.");
+        m_is_running = true;
     } else {
         m_device->continuous_stop();
         m_measure_timer->Stop();
@@ -506,7 +543,7 @@ void MainFrame::onRunLogResults(wxCommandEvent& ce)
                             wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 
         if (dialog.ShowModal() != wxID_CANCEL) {
-            if (m_conv_result_log != nullptr) {
+            if (m_conv_result_log) {
                 m_conv_result_log->Close();
                 delete m_conv_result_log;
                 m_conv_result_log = nullptr;
@@ -516,174 +553,151 @@ void MainFrame::onRunLogResults(wxCommandEvent& ce)
         }
 
         m_status_bar->SetStatusText("Ready.");
-    } else if (m_conv_result_log != nullptr) {
+    } else if (m_conv_result_log) {
         m_conv_result_log->Close();
         delete m_conv_result_log;
         m_conv_result_log = nullptr;
     }
 }
 
-void MainFrame::onRunEditBSize([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onRunEditBSize(wxCommandEvent&)
 {
-    if (m_device != nullptr && m_device->connected()) {
-        wxTextEntryDialog dialog (this, "Enter new buffer size (100-3000)", "Set Buffer Size");
-        if (dialog.ShowModal() == wxID_OK) {
-            if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
-                if (unsigned long n; value.ToULong(&n)) {
-                    if (n >= 100 && n <= stmdsp::SAMPLES_MAX) {
-                        m_device->continuous_set_buffer_size(n);
-                    } else {
-                        m_status_bar->SetStatusText("Error: Invalid buffer size.");
-                    }
+    wxTextEntryDialog dialog (this, "Enter new buffer size (100-3000)", "Set Buffer Size");
+    if (dialog.ShowModal() == wxID_OK) {
+        if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
+            if (unsigned long n; value.ToULong(&n)) {
+                if (n >= 100 && n <= stmdsp::SAMPLES_MAX) {
+                    m_device->continuous_set_buffer_size(n);
                 } else {
                     m_status_bar->SetStatusText("Error: Invalid buffer size.");
                 }
             } else {
-                m_status_bar->SetStatusText("Ready.");
+                m_status_bar->SetStatusText("Error: Invalid buffer size.");
             }
         } else {
             m_status_bar->SetStatusText("Ready.");
         }
     } else {
-        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
-        m_status_bar->SetStatusText("Please connect.");
+        m_status_bar->SetStatusText("Ready.");
     }
 }
 
 void MainFrame::onToolbarSampleRate(wxCommandEvent& ce)
 {
-    if (m_device != nullptr && m_device->connected()) {
-        auto combo = dynamic_cast<wxComboBox *>(ce.GetEventUserData());
-        m_device->set_sample_rate(combo->GetCurrentSelection());
-        m_status_bar->SetStatusText("Ready.");
-    } else {
-        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
-        m_status_bar->SetStatusText("Please connect.");
-    }
+    auto combo = dynamic_cast<wxComboBox *>(ce.GetEventUserData());
+    m_device->set_sample_rate(combo->GetCurrentSelection());
+    m_status_bar->SetStatusText("Ready.");
 }
 
-void MainFrame::onRunGenUpload([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onRunGenUpload(wxCommandEvent&)
 {
-    if (m_device != nullptr && m_device->connected()) {
-        wxTextEntryDialog dialog (this, "Enter generator values below. Values must be whole numbers "
-                                        "between zero and 4095.", "Enter Generator Values");
-        if (dialog.ShowModal() == wxID_OK) {
-            if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
-                if (values[0] == '/') {
-                    m_wav_clip = new wav::clip(values.Mid(1));
-                    if (m_wav_clip->valid()) {
-                        m_status_bar->SetStatusText("Generator ready.");
-                    } else {
-                        delete m_wav_clip;
-                        m_wav_clip = nullptr;
-                        m_status_bar->SetStatusText("Error: Bad WAV file.");
-                    }
+    wxTextEntryDialog dialog (this, "Enter generator values below. Values must be whole numbers "
+                                    "between zero and 4095.", "Enter Generator Values");
+    if (dialog.ShowModal() == wxID_OK) {
+        if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
+            if (values[0] == '/') {
+                m_wav_clip = new wav::clip(values.Mid(1));
+                if (m_wav_clip->valid()) {
+                    m_status_bar->SetStatusText("Generator ready.");
                 } else {
-                    std::vector<stmdsp::dacsample_t> samples;
-                    while (!values.IsEmpty()) {
-                        if (auto number_end = values.find_first_not_of("0123456789");
-                            number_end != wxString::npos && number_end > 0)
-                        {
-                            auto number = values.Left(number_end);
-                            if (unsigned long n; number.ToULong(&n))
-                                samples.push_back(n & 4095);
+                    delete m_wav_clip;
+                    m_wav_clip = nullptr;
+                    m_status_bar->SetStatusText("Error: Bad WAV file.");
+                }
+            } else {
+                std::vector<stmdsp::dacsample_t> samples;
+                while (!values.IsEmpty()) {
+                    if (auto number_end = values.find_first_not_of("0123456789");
+                        number_end != wxString::npos && number_end > 0)
+                    {
+                        auto number = values.Left(number_end);
+                        if (unsigned long n; number.ToULong(&n))
+                            samples.push_back(n & 4095);
 
-                            if (auto next = values.find_first_of("0123456789", number_end + 1);
-                                next != wxString::npos)
-                            {
-                                values = values.Mid(next);
-                            } else {
-                                break;
-                            }
+                        if (auto next = values.find_first_of("0123456789", number_end + 1);
+                            next != wxString::npos)
+                        {
+                            values = values.Mid(next);
                         } else {
                             break;
                         }
-                    }
-
-                    if (samples.size() <= stmdsp::SAMPLES_MAX) {
-                        m_device->siggen_upload(&samples[0], samples.size());
-                        m_status_bar->SetStatusText("Generator ready.");
                     } else {
-                        m_status_bar->SetStatusText("Error: Too many samples.");
+                        break;
                     }
                 }
-            } else {
-                m_status_bar->SetStatusText("Error: No samples given.");
+
+                if (samples.size() <= stmdsp::SAMPLES_MAX) {
+                    m_device->siggen_upload(&samples[0], samples.size());
+                    m_status_bar->SetStatusText("Generator ready.");
+                } else {
+                    m_status_bar->SetStatusText("Error: Too many samples.");
+                }
             }
         } else {
-            m_status_bar->SetStatusText("Ready.");
+            m_status_bar->SetStatusText("Error: No samples given.");
         }
     } else {
-        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
-        m_status_bar->SetStatusText("Please connect.");
+        m_status_bar->SetStatusText("Ready.");
     }
 }
 
 void MainFrame::onRunGenStart(wxCommandEvent& ce)
 {
     auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
-    if (m_device != nullptr && m_device->connected()) {
-        if (menuItem->IsChecked()) {
-            m_device->siggen_start();
-            menuItem->SetItemLabel("Stop &generator");
-        } else {
-            m_device->siggen_stop();
-            menuItem->SetItemLabel("Start &generator");
-        }
+    if (menuItem->IsChecked()) {
+        m_device->siggen_start();
+        menuItem->SetItemLabel("Stop &generator");
     } else {
-        wxMessageBox("No device connected!", "Run", wxICON_WARNING);
-        m_status_bar->SetStatusText("Please connect.");
+        m_device->siggen_stop();
+        menuItem->SetItemLabel("Start &generator");
     }
 }
 
-void MainFrame::onRunUpload([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onRunUpload(wxCommandEvent&)
 {
     if (auto file = compileEditorCode(); !file.IsEmpty()) {
         if (wxFileInputStream file_stream (file); file_stream.IsOk()) {
             auto size = file_stream.GetSize();
             auto buffer = new unsigned char[size];
-            if (m_device != nullptr && m_device->connected()) {
-                file_stream.ReadAll(buffer, size);
-                m_device->upload_filter(buffer, size);
-                m_status_bar->SetStatusText("Code uploaded.");
-            } else {
-                wxMessageBox("No device connected!", "Run", wxICON_WARNING);
-                m_status_bar->SetStatusText("Please connect.");
-            }
+            file_stream.ReadAll(buffer, size);
+            m_device->upload_filter(buffer, size);
+            m_status_bar->SetStatusText("Code uploaded.");
         } else {
              m_status_bar->SetStatusText("Couldn't load compiled code.");
         }
     }
 }
 
-void MainFrame::onRunUnload([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onRunUnload(wxCommandEvent&)
 {
-    if (m_device != nullptr && m_device->connected()) {
-        m_device->unload_filter();
-        m_status_bar->SetStatusText("Unloaded code.");
-    } else {
-        m_status_bar->SetStatusText("No device connected.");
-    }
+    m_device->unload_filter();
+    m_status_bar->SetStatusText("Unloaded code.");
 }
 
-void MainFrame::onRunCompile([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onRunCompile(wxCommandEvent&)
 {
     compileEditorCode();
 }
 
-void MainFrame::onCodeDisassemble([[maybe_unused]] wxCommandEvent&)
+void MainFrame::onCodeDisassemble(wxCommandEvent&)
 {
-    auto output = m_temp_file_name + ".asm.log";
-    wxString command = wxString("arm-none-eabi-objdump -d --no-show-raw-insn ") + m_temp_file_name + ".orig.o"
-                                " > " + output + " 2>&1";
-
-    if (system(command.ToAscii()) == 0) {
-        m_compile_output->LoadFile(output);
-        m_status_bar->SetStatusText(wxString::Format(wxT("Done. Line count: %u."),
-                                                         m_compile_output->GetNumberOfLines()));
+    if (!m_temp_file_name.IsEmpty()) {
+        auto output = m_temp_file_name + ".asm.log";
+        wxString command = wxString("arm-none-eabi-objdump -d --no-show-raw-insn ") +
+                                    m_temp_file_name + ".orig.o" // +
+                                    " > " + output + " 2>&1";
+    
+        if (system(command.ToAscii()) == 0) {
+            m_compile_output->LoadFile(output);
+            m_status_bar->SetStatusText(wxString::Format(wxT("Done. Line count: %u."),
+                                                             m_compile_output->GetNumberOfLines()));
+        } else {
+            m_compile_output->ChangeValue("");
+            m_status_bar->SetStatusText("Failed to load disassembly.");
+        }
     } else {
         m_compile_output->ChangeValue("");
-        m_status_bar->SetStatusText("Failed to load disassembly (code compiled?).");
+        m_status_bar->SetStatusText("Need to compile code before analyzing.");
     }
 }
 
@@ -703,5 +717,17 @@ wxMenu *MainFrame::loadTemplates()
     }
 
     return menu;
+}
+
+void MainFrame::updateMenuOptions()
+{
+    bool connected = m_device != nullptr;
+    m_menu_bar->Enable(MRunStart, connected);
+    m_menu_bar->Enable(MRunUpload, connected);
+    m_menu_bar->Enable(MRunUnload, connected);
+    m_menu_bar->Enable(MRunEditBSize, connected);
+    m_menu_bar->Enable(MRunGenUpload, connected);
+    m_menu_bar->Enable(MRunGenStart, connected);
+    m_rate_select->Enable(connected);
 }
 

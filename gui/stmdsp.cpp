@@ -139,13 +139,17 @@ namespace stmdsp
     }
 
     void device::siggen_start() {
-        if (connected())
+        if (connected()) {
+            m_is_siggening = true;
             m_serial.write("W");
+        }
     }
 
     void device::siggen_stop() {
-        if (connected())
+        if (connected()) {
+            m_is_siggening = false;
             m_serial.write("w");
+        }
     }
 
     void device::upload_filter(unsigned char *buffer, size_t size) {
