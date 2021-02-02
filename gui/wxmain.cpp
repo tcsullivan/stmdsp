@@ -222,33 +222,15 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
 // Needs to clean things up
 void MainFrame::onCloseEvent(wxCloseEvent& event)
 {
-    //SetMenuBar(nullptr);
-    //delete m_menu_bar->Remove(2);
-    //delete m_menu_bar->Remove(1);
-    //delete m_menu_bar->Remove(0);
-    //delete m_menu_bar;
-    //delete m_measure_timer;
+    SetMenuBar(nullptr);
+    delete m_menu_bar->Remove(2);
+    delete m_menu_bar->Remove(1);
+    delete m_menu_bar->Remove(0);
+    delete m_menu_bar;
+    delete m_measure_timer;
 
-    //Unbind(wxEVT_TIMER,        &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
-    //Unbind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,   this, wxID_ANY);
-    //Unbind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, Id::MCodeCompile, wxID_ANY);
-    //Unbind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY,         wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onFileNew,    this, Id::MFileNew,    wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onFileOpen,   this, Id::MFileOpen,   wxID_ANY);
-    ////menuFile->Append(MFileOpenTemplate, "Open &Template", loadTemplates());
-    //Unbind(wxEVT_MENU, &MainFrame::onFileSave,   this, Id::MFileSave,   wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onFileSaveAs, this, Id::MFileSaveAs, wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onFileQuit,   this, Id::MFileQuit,   wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunConnect,    this, Id::MRunConnect,    wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunStart,      this, Id::MRunStart,      wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunLogResults, this, Id::MRunLogResults, wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunUpload,     this, Id::MRunUpload,     wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunUnload,     this, Id::MRunUnload,     wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunEditBSize,  this, Id::MRunEditBSize,  wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunGenUpload,  this, Id::MRunGenUpload,  wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunGenStart,   this, Id::MRunGenStart,   wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onRunCompile,      this, Id::MCodeCompile,     wxID_ANY);
-    //Unbind(wxEVT_MENU, &MainFrame::onCodeDisassemble, this, Id::MCodeDisassemble, wxID_ANY);
+    Unbind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY,         wxID_ANY);
+    Unbind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, Id::MCodeCompile, wxID_ANY);
 
     event.Skip();
 }
