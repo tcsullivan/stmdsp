@@ -50,16 +50,19 @@ static msg_t conversionMBBuffer[2];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
 
 // Thread for LED status and wakeup hold
-static THD_WORKING_AREA(monitorThreadWA, 128);
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(monitorThreadWA, 1024);
 static THD_FUNCTION(monitorThread, arg);
 // Thread for managing the conversion task
-static THD_WORKING_AREA(conversionThreadMonitorWA, 128);
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(conversionThreadMonitorWA, 1024);
 static THD_FUNCTION(conversionThreadMonitor, arg);
 // Thread for unprivileged algorithm execution
-static THD_WORKING_AREA(conversionThreadWA, 128);
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(conversionThreadWA, 1024);
 static THD_FUNCTION(conversionThread, arg);
 __attribute__((section(".convdata")))
-static THD_WORKING_AREA(conversionThreadUPWA, 256);
+static THD_WORKING_AREA(conversionThreadUPWA, 62 * 1024);
 
 static thread_t *conversionThreadHandle = nullptr;
 __attribute__((section(".convdata")))
@@ -98,13 +101,13 @@ int main()
     mpuConfigureRegion(MPU_REGION_2,
                        0x20000000,
                        MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
-                       MPU_RASR_SIZE_4K |
+                       MPU_RASR_SIZE_64K |
                        MPU_RASR_ENABLE);
     // Region 3: Code for algorithm manager thread
     mpuConfigureRegion(MPU_REGION_3,
-                       0x08080000,
+                       0x0807F800,
                        MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
-                       MPU_RASR_SIZE_4K |
+                       MPU_RASR_SIZE_2K |
                        MPU_RASR_ENABLE);
     // Region 4: Algorithm code
     mpuConfigureRegion(MPU_REGION_4,
@@ -408,10 +411,12 @@ THD_FUNCTION(monitorThread, arg)
         if (run_status == RunStatus::Idle && palReadLine(LINE_BUTTON)) {
             palSetLine(LINE_LED_RED);
             palSetLine(LINE_LED_YELLOW);
-            asm("cpsid i");
+            chSysLock();
+            while (palReadLine(LINE_BUTTON))
+                asm("nop");
             while (!palReadLine(LINE_BUTTON))
                 asm("nop");
-            asm("cpsie i");
+            chSysUnlock();
             palClearLine(LINE_LED_RED);
             palClearLine(LINE_LED_YELLOW);
             chThdSleepMilliseconds(500);
@@ -433,15 +438,33 @@ __attribute__((naked))
 void port_syscall(struct port_extctx *ctxp, uint32_t n)
 {
     switch (n) {
-    case 0: {
-        chSysLock();
-        chMsgWaitS();
-        auto msg = chMsgGet(conversionThreadMonitorHandle);
-        chMsgReleaseS(conversionThreadMonitorHandle, MSG_OK);
-        //chSchDoYieldS();
-        chSysUnlock();
-        ctxp->r0 = msg;
+    case 0:
+        {
+            chSysLock();
+            chMsgWaitS();
+            auto msg = chMsgGet(conversionThreadMonitorHandle);
+            chMsgReleaseS(conversionThreadMonitorHandle, MSG_OK);
+            chSysUnlock();
+            ctxp->r0 = msg;
+        }
+        break;
+    case 1:
+        {
+            using mathcall = void (*)();
+            static mathcall funcs[4] = {
+                reinterpret_cast<mathcall>(math::sin),
+                reinterpret_cast<mathcall>(math::cos),
+                reinterpret_cast<mathcall>(math::tan),
+                reinterpret_cast<mathcall>(math::sqrt),
+            };
+            asm("vmov.f64 d0, %0, %1" :: "r" (ctxp->r1), "r" (ctxp->r2));
+            if (ctxp->r0 < 4) {
+                funcs[ctxp->r0]();
+                asm("vmov.f64 %0, %1, d0" : "=r" (ctxp->r1), "=r" (ctxp->r2));
+            } else {
+                asm("eor r0, r0; vmov.f64 d0, r0, r0");
             }
+        }
         break;
     default:
         while (1);

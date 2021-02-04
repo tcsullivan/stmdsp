@@ -19,15 +19,15 @@
  * SRAM1        - SIGGEN.
  * SRAM2        - DAC.
  * SRAM4        - ADC.
- * DTCM-RAM     - Unprivileged Stack, Main Stack, Process Stack.
+ * DTCM-RAM     - Process stacks.
  * ITCM-RAM     - STMDSP Algorithm.
  * BCKP SRAM    - None.
  */
 MEMORY
 {
     flash0 (rx) : org = 0x08000000, len = 1M       /* Flash bank1 + bank2 */
-    flashc (rx) : org = 0x0807F000, len = 4K       /* Unprivileged firmware */
-    flash1 (rx) : org = 0x08000000, len = 512K     /* Flash bank 1 */
+    flash1 (rx) : org = 0x08000000, len = 510K     /* Flash bank 1 */
+    flashc (rx) : org = 0x0807F800, len = 2K       /* Unprivileged firmware */
     flash2 (rx) : org = 0x08080000, len = 512K     /* Flash bank 2 */
     flash3 (rx) : org = 0x00000000, len = 0
     flash4 (rx) : org = 0x00000000, len = 0
@@ -39,8 +39,8 @@ MEMORY
     ram2   (wx) : org = 0x30004000, len = 16K      /* AHB SRAM2 */
     ram3   (wx) : org = 0x38000000, len = 16K      /* AHB SRAM4 */
     ram4   (wx) : org = 0x00000000, len = 0
-    ramc   (wx) : org = 0x20000000, len = 4K       /* Unprivileged data */
-    ram5   (wx) : org = 0x20001000, len = 124K     /* DTCM-RAM */
+    ramc   (wx) : org = 0x20000000, len = 64K      /* Unprivileged data */
+    ram5   (wx) : org = 0x20010000, len = 64K      /* DTCM-RAM */
     ram6   (wx) : org = 0x00000000, len = 64K      /* ITCM-RAM */
     ram7   (wx) : org = 0x38800000, len = 4K       /* BCKP SRAM */
 }
@@ -99,6 +99,12 @@ SECTIONS
         *(.convdata)
         . = ALIGN(4);
     } > ramc
+
+    .stacks : ALIGN(4)
+    {
+        *(.stacks)
+        . = ALIGN(4);
+    } > ram5
 
     .convcode : ALIGN(4)
     {

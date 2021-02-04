@@ -65,12 +65,48 @@ static const char *file_header = R"cpp(
 
 using adcsample_t = uint16_t;
 constexpr unsigned int SIZE = $0;
-
 adcsample_t *process_data(adcsample_t *samples, unsigned int size);
-
 extern "C" void process_data_entry()
 {
     ((void (*)())process_data)();
+}
+
+constexpr double PI = 3.14159265358979323846L;
+__attribute__((naked))
+auto sin(double x) {
+asm("vmov.f64 r1, r2, d0;"
+    "eor r0, r0;"
+    "svc 1;"
+    "vmov.f64 d0, r1, r2;"
+    "bx lr");
+return 0;
+}
+__attribute__((naked))
+auto cos(double x) {
+asm("vmov.f64 r1, r2, d0;"
+	"mov r0, #1;"
+	"svc 1;"
+	"vmov.f64 d0, r1, r2;"
+	"bx lr");
+return 0;
+}
+__attribute__((naked))
+auto tan(double x) {
+asm("vmov.f64 r1, r2, d0;"
+	"mov r0, #2;"
+	"svc 1;"
+	"vmov.f64 d0, r1, r2;"
+	"bx lr");
+return 0;
+}
+__attribute__((naked))
+auto sqrt(double x) {
+asm("vmov.f64 r1, r2, d0;"
+	"mov r0, #3;"
+	"svc 1;"
+	"vmov.f64 d0, r1, r2;"
+	"bx lr");
+return 0;
 }
 
 // End stmdspgui header code
@@ -223,11 +259,12 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
 void MainFrame::onCloseEvent(wxCloseEvent& event)
 {
     SetMenuBar(nullptr);
-    delete m_menu_bar->Remove(2);
-    delete m_menu_bar->Remove(1);
-    delete m_menu_bar->Remove(0);
-    delete m_menu_bar;
+    //delete m_menu_bar->Remove(2);
+    //delete m_menu_bar->Remove(1);
+    //delete m_menu_bar->Remove(0);
+    //delete m_menu_bar;
     delete m_measure_timer;
+    delete m_device;
 
     Unbind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY,         wxID_ANY);
     Unbind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, Id::MCodeCompile, wxID_ANY);

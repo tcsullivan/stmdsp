@@ -1,4 +1,4 @@
-#include "common.hpp"
+#include "samplebuffer.hpp"
 
 SampleBuffer::SampleBuffer(Sample *buffer) :
     m_buffer(buffer) {}
