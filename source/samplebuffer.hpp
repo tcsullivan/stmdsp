@@ -6,7 +6,7 @@
 
 using Sample = uint16_t;
 
-// gives 8000
+// gives 8000 (8192)
 constexpr unsigned int MAX_SAMPLE_BUFFER_BYTESIZE = 16384;
 constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = MAX_SAMPLE_BUFFER_BYTESIZE / sizeof(Sample);
 

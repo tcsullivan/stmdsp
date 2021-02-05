@@ -51,24 +51,29 @@ static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
 
 // Thread for LED status and wakeup hold
 __attribute__((section(".stacks")))
-static THD_WORKING_AREA(monitorThreadWA, 1024);
+static THD_WORKING_AREA(monitorThreadWA, 4096);
 static THD_FUNCTION(monitorThread, arg);
+
 // Thread for managing the conversion task
 __attribute__((section(".stacks")))
-static THD_WORKING_AREA(conversionThreadMonitorWA, 1024);
+static THD_WORKING_AREA(conversionThreadMonitorWA, 4096);
 static THD_FUNCTION(conversionThreadMonitor, arg);
+static thread_t *conversionThreadHandle = nullptr;
+
 // Thread for unprivileged algorithm execution
 __attribute__((section(".stacks")))
-static THD_WORKING_AREA(conversionThreadWA, 1024);
+static THD_WORKING_AREA(conversionThreadWA, 128); // All we do is enter unprivileged mode.
 static THD_FUNCTION(conversionThread, arg);
 __attribute__((section(".convdata")))
 static THD_WORKING_AREA(conversionThreadUPWA, 62 * 1024);
-
-static thread_t *conversionThreadHandle = nullptr;
 __attribute__((section(".convdata")))
 static thread_t *conversionThreadMonitorHandle = nullptr;
 
-__attribute__((section(".convdata")))
+// Thread for USB monitoring
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(communicationThreadWA, 4096);
+static THD_FUNCTION(communicationThread, arg);
+
 static time_measurement_t conversion_time_measurement;
 __attribute__((section(".convdata")))
 static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000)); // 16k
@@ -81,9 +86,13 @@ static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 __attribute__((section(".convdata")))
 static ELF::Entry elf_entry = nullptr;
 
+__attribute__((section(".convcode")))
+static void conversion_unprivileged_main();
+
+static void mpu_setup();
+static void conversion_abort();
 static void signal_operate(adcsample_t *buffer, size_t count);
 static void signal_operate_measure(adcsample_t *buffer, size_t count);
-static void main_loop();
 
 int main()
 {
@@ -91,31 +100,10 @@ int main()
     halInit();
     chSysInit();
 
+    SCB->CPACR |= 0xF << 20; // Enable FPU
+    mpu_setup();
+
     palSetLineMode(LINE_BUTTON, PAL_MODE_INPUT);
-
-    // Enable FPU
-    SCB->CPACR |= 0xF << 20;
-
-    // Set up MPU for user algorithm
-    // Region 2: Data for algorithm manager thread
-    mpuConfigureRegion(MPU_REGION_2,
-                       0x20000000,
-                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
-                       MPU_RASR_SIZE_64K |
-                       MPU_RASR_ENABLE);
-    // Region 3: Code for algorithm manager thread
-    mpuConfigureRegion(MPU_REGION_3,
-                       0x0807F800,
-                       MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
-                       MPU_RASR_SIZE_2K |
-                       MPU_RASR_ENABLE);
-    // Region 4: Algorithm code
-    mpuConfigureRegion(MPU_REGION_4,
-                       0x00000000,
-                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
-                       MPU_RASR_SIZE_64K |
-                       MPU_RASR_ENABLE);
-
     ADC::begin();
     DAC::begin();
     SClock::begin();
@@ -126,27 +114,55 @@ int main()
     ADC::setRate(SClock::Rate::R32K);
 
     chTMObjectInit(&conversion_time_measurement);
-    chThdCreateStatic(monitorThreadWA, sizeof(monitorThreadWA),
-                      NORMALPRIO, monitorThread, nullptr);
+    chThdCreateStatic(
+        monitorThreadWA, sizeof(monitorThreadWA),
+        LOWPRIO,
+        monitorThread, nullptr);
     conversionThreadMonitorHandle = chThdCreateStatic(
-                      conversionThreadMonitorWA, sizeof(conversionThreadMonitorWA),
-                      NORMALPRIO, conversionThreadMonitor, nullptr);
+        conversionThreadMonitorWA, sizeof(conversionThreadMonitorWA),
+        NORMALPRIO + 1,
+        conversionThreadMonitor, nullptr);
     conversionThreadHandle = chThdCreateStatic(
-                      conversionThreadWA, sizeof(conversionThreadWA),
-                      NORMALPRIO + 1, conversionThread, nullptr);
+        conversionThreadWA, sizeof(conversionThreadWA),
+        HIGHPRIO,
+        conversionThread,
+        reinterpret_cast<void *>(reinterpret_cast<uint32_t>(conversionThreadUPWA) + 62 * 1024));
+    chThdCreateStatic(
+        communicationThreadWA, sizeof(communicationThreadWA),
+        NORMALPRIO,
+        communicationThread, nullptr);
 
-    main_loop();
+    chThdExit(0);
+    return 0;
 }
 
-void main_loop()
+THD_FUNCTION(communicationThread, arg)
 {
-
+    (void)arg;
 	while (1) {
         if (USBSerial::isActive()) {
             // Attempt to receive a command packet
             if (unsigned char cmd[3]; USBSerial::read(&cmd[0], 1) > 0) {
                 // Packet received, first byte represents the desired command/action
                 switch (cmd[0]) {
+
+                // 'a' - Read contents of ADC buffer.
+                // 'A' - Write contents of ADC buffer.
+                // 'B' - Set ADC/DAC buffer size.
+                // 'd' - Read contents of DAC buffer.
+                // 'D' - Set siggen size and write to its buffer.
+                // 'E' - Load algorithm binary.
+                // 'e' - Unload algorithm.
+                // 'i' - Read "stmdsp" identifier string.
+                // 'I' - Read status information.
+                // 'M' - Begin conversion, measure algorithm execution time.
+                // 'm' - Read last algorithm execution time.
+                // 'R' - Begin conversion.
+                // 'r' - Read or write sample rate.
+                // 'S' - Stop conversion.
+                // 's' - Get latest block of conversion results.
+                // 'W' - Start signal generator (siggen).
+                // 'w' - Stop siggen.
 
                 case 'a':
                     USBSerial::write(samplesIn.bytedata(), samplesIn.bytesize());
@@ -159,6 +175,8 @@ void main_loop()
                     if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle) &&
                         EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize))
                     {
+                        // count is multiplied by two since this command receives size of buffer
+                        // for each algorithm application.
                         unsigned int count = (cmd[1] | (cmd[2] << 8)) * 2;
                         if (EM.assert(count <= MAX_SAMPLE_BUFFER_SIZE, Error::BadParam)) {
                             samplesIn.setSize(count);
@@ -308,17 +326,6 @@ void main_loop()
 	}
 }
 
-void conversion_abort()
-{
-    elf_entry = nullptr;
-    DAC::stop(0);
-    ADC::stop();
-    EM.add(Error::ConversionAborted);
-
-    chMBReset(&conversionMB);
-    run_status = RunStatus::Idle;
-}
-
 THD_FUNCTION(conversionThreadMonitor, arg)
 {
     (void)arg;
@@ -333,64 +340,11 @@ THD_FUNCTION(conversionThreadMonitor, arg)
     }
 }
 
-__attribute__((section(".convcode")))
-static void convThdMain();
-
-THD_FUNCTION(conversionThread, arg)
+THD_FUNCTION(conversionThread, stack)
 {
-    (void)arg;
     elf_entry = nullptr;
-    port_unprivileged_jump(reinterpret_cast<uint32_t>(convThdMain),
-                           reinterpret_cast<uint32_t>(conversionThreadUPWA) + 256);
-}
-
-void convThdMain()
-{
-    while (1) {
-        msg_t message;
-        asm("svc 0; mov %0, r0" : "=r" (message));
-        if (message != 0) {
-            auto samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
-            auto size = samplesIn.size() / 2;
-
-            if (elf_entry) {
-                if (!MSG_FOR_MEASURE(message)) {
-                    samples = elf_entry(samples, size);
-                } else {
-                    //chTMStartMeasurementX(&conversion_time_measurement);
-                    samples = elf_entry(samples, size);
-                    //chTMStopMeasurementX(&conversion_time_measurement);
-                } 
-            }
-
-            if (MSG_FOR_FIRST(message))
-                samplesOut.modify(samples, size); 
-            else
-                samplesOut.midmodify(samples, size); 
-        }
-    }
-}
-
-void signal_operate(adcsample_t *buffer, size_t)
-{
-    chSysLockFromISR();
-
-    if (chMBGetUsedCountI(&conversionMB) > 1) {
-        chSysUnlockFromISR();
-        conversion_abort();
-    } else {
-        chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST : MSG_CONVSECOND);
-        chSysUnlockFromISR();
-    }
-}
-
-void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
-{
-    chSysLockFromISR();
-    chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST_MEASURE : MSG_CONVSECOND_MEASURE);
-    chSysUnlockFromISR();
-
-    ADC::setOperation(signal_operate);
+    port_unprivileged_jump(reinterpret_cast<uint32_t>(conversion_unprivileged_main),
+                           reinterpret_cast<uint32_t>(stack));
 }
 
 THD_FUNCTION(monitorThread, arg)
@@ -432,6 +386,90 @@ THD_FUNCTION(monitorThread, arg)
     }
 }
 
+void conversion_unprivileged_main()
+{
+    while (1) {
+        msg_t message;
+        asm("svc 0; mov %0, r0" : "=r" (message)); // sleep until next message
+        if (message != 0) {
+            auto samples = MSG_FOR_FIRST(message) ? samplesIn.data() : samplesIn.middata();
+            auto size = samplesIn.size() / 2;
+
+            if (elf_entry) {
+                if (!MSG_FOR_MEASURE(message)) {
+                    samples = elf_entry(samples, size);
+                } else {
+                    asm("eor r0, r0; svc 2"); // start measurement
+                    samples = elf_entry(samples, size);
+                    asm("mov r0, #1; svc 2"); // stop measurement
+                } 
+            }
+
+            if (MSG_FOR_FIRST(message))
+                samplesOut.modify(samples, size); 
+            else
+                samplesOut.midmodify(samples, size); 
+        }
+    }
+}
+
+void mpu_setup()
+{
+    // Set up MPU for user algorithm
+    // Region 2: Data for algorithm manager thread
+    mpuConfigureRegion(MPU_REGION_2,
+                       0x20000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_64K |
+                       MPU_RASR_ENABLE);
+    // Region 3: Code for algorithm manager thread
+    mpuConfigureRegion(MPU_REGION_3,
+                       0x0807F800,
+                       MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_2K |
+                       MPU_RASR_ENABLE);
+    // Region 4: Algorithm code
+    mpuConfigureRegion(MPU_REGION_4,
+                       0x00000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_64K |
+                       MPU_RASR_ENABLE);
+}
+
+void conversion_abort()
+{
+    elf_entry = nullptr;
+    DAC::stop(0);
+    ADC::stop();
+    EM.add(Error::ConversionAborted);
+
+    chMBReset(&conversionMB);
+    run_status = RunStatus::Idle;
+}
+
+void signal_operate(adcsample_t *buffer, size_t)
+{
+    chSysLockFromISR();
+
+    if (chMBGetUsedCountI(&conversionMB) > 1) {
+        chSysUnlockFromISR();
+        conversion_abort();
+    } else {
+        chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST : MSG_CONVSECOND);
+        chSysUnlockFromISR();
+    }
+}
+
+void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
+{
+    chSysLockFromISR();
+    chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST_MEASURE
+                                                        : MSG_CONVSECOND_MEASURE);
+    chSysUnlockFromISR();
+
+    ADC::setOperation(signal_operate);
+}
+
 extern "C" {
 
 __attribute__((naked))
@@ -466,12 +504,31 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
             }
         }
         break;
+    case 2:
+        if (ctxp->r0 == 0) {
+            chTMStartMeasurementX(&conversion_time_measurement);
+        } else {
+            chTMStopMeasurementX(&conversion_time_measurement);
+            // Subtract measurement overhead from the result.
+            // Running an empty algorithm ("bx lr") takes 196 cycles as of 2/4/21.
+            // Only measures algorithm code time (loading args/storing result takes 9 cycles).
+            constexpr rtcnt_t measurement_overhead = 196 - 1;
+            if (conversion_time_measurement.last > measurement_overhead)
+                conversion_time_measurement.last -= measurement_overhead;
+        }
+        break;
     default:
         while (1);
         break;
     }
 
     asm("svc 0");
+    while (1);
+}
+
+__attribute__((naked))
+void MemManage_Handler()
+{
     while (1);
 }
 

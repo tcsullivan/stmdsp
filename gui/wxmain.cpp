@@ -581,7 +581,7 @@ void MainFrame::onRunLogResults(wxCommandEvent& ce)
 
 void MainFrame::onRunEditBSize(wxCommandEvent&)
 {
-    wxTextEntryDialog dialog (this, "Enter new buffer size (100-3000)", "Set Buffer Size");
+    wxTextEntryDialog dialog (this, "Enter new buffer size (100-4000)", "Set Buffer Size");
     if (dialog.ShowModal() == wxID_OK) {
         if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
             if (unsigned long n; value.ToULong(&n)) {
@@ -610,8 +610,9 @@ void MainFrame::onToolbarSampleRate(wxCommandEvent& ce)
 
 void MainFrame::onRunGenUpload(wxCommandEvent&)
 {
-    wxTextEntryDialog dialog (this, "Enter generator values below. Values must be whole numbers "
-                                    "between zero and 4095.", "Enter Generator Values");
+    wxTextEntryDialog dialog (this, "Enter up to 8000 generator values below. "
+                                    "Values must be whole numbers between zero and 4095.",
+                                    "Enter Generator Values");
     if (dialog.ShowModal() == wxID_OK) {
         if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
             if (values[0] == '/') {
@@ -625,7 +626,7 @@ void MainFrame::onRunGenUpload(wxCommandEvent&)
                 }
             } else {
                 std::vector<stmdsp::dacsample_t> samples;
-                while (!values.IsEmpty()) {
+                while (!values.IsEmpty() && samples.size() <= stmdsp::SAMPLES_MAX * 2) {
                     if (auto number_end = values.find_first_not_of("0123456789");
                         number_end != wxString::npos && number_end > 0)
                     {
@@ -649,7 +650,7 @@ void MainFrame::onRunGenUpload(wxCommandEvent&)
                     m_device->siggen_upload(&samples[0], samples.size());
                     m_status_bar->SetStatusText("Generator ready.");
                 } else {
-                    m_status_bar->SetStatusText("Error: Too many samples.");
+                    m_status_bar->SetStatusText("Error: Too many samples (max is 8000).");
                 }
             }
         } else {
