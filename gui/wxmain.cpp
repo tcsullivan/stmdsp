@@ -12,6 +12,7 @@
 #include "wxmain.hpp"
 
 #include <wx/combobox.h>
+#include <wx/dcclient.h>
 #include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/filedlg.h>
@@ -25,6 +26,7 @@
 #include <wx/textdlg.h>
 
 #include <array>
+#include <sys/mman.h>
 #include <vector>
 
 static const std::array<wxString, 6> srateValues {
@@ -133,6 +135,7 @@ enum Id {
     MRunConnect,
     MRunStart,
     MRunMeasure,
+    MRunDrawSamples,
     MRunLogResults,
     MRunUpload,
     MRunUnload,
@@ -177,6 +180,12 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
                                       wxDefaultPosition, wxDefaultSize,
                                       srateValues.size(), srateValues.data(),
                                       wxCB_READONLY);
+    m_device_samples = reinterpret_cast<stmdsp::adcsample_t *>(::mmap(
+        nullptr, stmdsp::SAMPLES_MAX * sizeof(stmdsp::adcsample_t),
+        PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+    m_device_samples_input = reinterpret_cast<stmdsp::adcsample_t *>(::mmap(
+        nullptr, stmdsp::SAMPLES_MAX * sizeof(stmdsp::adcsample_t),
+        PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
 
     m_menu_bar->Append(menuFile, "&File");
     m_menu_bar->Append(menuRun, "&Run");
@@ -217,6 +226,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
     // General
     Bind(wxEVT_TIMER,        &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,   this, wxID_ANY);
+    Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, wxID_ANY);
 
     // Toolbar actions
     Bind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, Id::MCodeCompile, wxID_ANY, comp);
@@ -237,6 +247,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "stmdspgui", wxPoint(50, 50)
     menuRun->AppendSeparator();
     Bind(wxEVT_MENU, &MainFrame::onRunStart,      this, Id::MRunStart,      wxID_ANY, menuRun->Append(MRunStart, "&Start"));
     m_run_measure = menuRun->AppendCheckItem(MRunMeasure, "&Measure code time");
+    m_run_draw_samples = menuRun->AppendCheckItem(MRunDrawSamples, "&Draw samples");
     Bind(wxEVT_MENU, &MainFrame::onRunLogResults, this, Id::MRunLogResults, wxID_ANY, menuRun->AppendCheckItem(MRunLogResults, "&Log results..."));
     menuRun->AppendSeparator();
     Bind(wxEVT_MENU, &MainFrame::onRunUpload,     this, Id::MRunUpload,     wxID_ANY, menuRun->Append(MRunUpload, "&Upload code"));
@@ -276,12 +287,21 @@ void MainFrame::onCloseEvent(wxCloseEvent& event)
 // Only called while connected and running.
 void MainFrame::onMeasureTimer(wxTimerEvent&)
 {
-    if (m_conv_result_log) {
-        // We're meant to log
-        if (auto samples = m_device->continuous_read(); samples.size() > 0) {
-            for (auto& s : samples) {
-                auto str = std::to_string(s);
-                m_conv_result_log->Write(str.c_str(), str.size());
+    if (m_conv_result_log || m_run_draw_samples->IsChecked()) {
+        auto samples = m_device->continuous_read();
+        if (samples.size() > 0) {
+            std::copy(samples.cbegin(), samples.cend(), m_device_samples);
+
+            if (m_conv_result_log) {
+                for (auto& s : samples) {
+                    auto str = std::to_string(s);
+                    m_conv_result_log->Write(str.c_str(), str.size());
+                }
+            }
+            if (m_run_draw_samples->IsChecked()) {
+                samples = m_device->continuous_read_input();
+                std::copy(samples.cbegin(), samples.cend(), m_device_samples_input);
+                this->Refresh();
             }
         }
     }
@@ -302,6 +322,54 @@ void MainFrame::onMeasureTimer(wxTimerEvent&)
         m_status_bar->SetStatusText(wxString::Format(wxT("Execution time: %u cycles"),
                                                      m_device->continuous_start_get_measurement()));
     }
+}
+
+void MainFrame::onPaint(wxPaintEvent&)
+{
+    if (!m_is_running || !m_run_draw_samples->IsChecked()) {
+        if (!m_compile_output->IsShown())
+            m_compile_output->Show();
+        return;
+    } else if (m_compile_output->IsShown()) {
+        m_compile_output->Hide();
+    }
+
+    auto py = m_compile_output->GetScreenPosition().y - this->GetScreenPosition().y - 28;
+    wxRect rect {
+        0, py,
+        this->GetSize().GetWidth(),
+        this->GetSize().GetHeight() - py - 60
+    };
+
+    auto *dc = new wxPaintDC(this);
+    dc->SetBrush(*wxBLACK_BRUSH);
+    dc->SetPen(*wxBLACK_PEN);
+    dc->DrawRectangle(rect);
+    dc->SetBrush(*wxRED_BRUSH);
+    dc->SetPen(*wxRED_PEN);
+    auto stoy = [&](stmdsp::adcsample_t s) {
+        return static_cast<float>(py) + rect.GetHeight() -
+            (static_cast<float>(rect.GetHeight()) * s / 4095.f);
+    };
+    auto scount = m_device->get_buffer_size();
+    float dx = static_cast<float>(rect.GetWidth()) / scount;
+    float x = 0;
+    float lasty = stoy(2048);
+    for (decltype(scount) i = 0; i < scount; i++) {
+        auto y = stoy(m_device_samples[i]);
+        dc->DrawLine(x, lasty, x + dx, y);
+        x += dx, lasty = y;
+    }
+    dc->SetBrush(*wxBLUE_BRUSH);
+    dc->SetPen(*wxBLUE_PEN);
+    x = 0;
+    lasty = stoy(2048);
+    for (decltype(scount) i = 0; i < scount; i++) {
+        auto y = stoy(m_device_samples_input[i]);
+        dc->DrawLine(x, lasty, x + dx, y);
+        x += dx, lasty = y;
+    }
+    delete dc;
 }
 
 void MainFrame::prepareEditor()
@@ -536,11 +604,14 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
                                        srateNums[m_rate_select->GetSelection()]);
             } else if (m_conv_result_log) {
                 m_measure_timer->Start(15);
+            } else if (m_run_draw_samples->IsChecked()) {
+                m_measure_timer->Start(300);
             }
 
             m_device->continuous_start();
         }
 
+        m_rate_select->Enable(false);
         menuItem->SetItemLabel("&Stop");
         m_status_bar->SetStatusText("Running.");
         m_is_running = true;
@@ -548,9 +619,13 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
         m_device->continuous_stop();
         m_measure_timer->Stop();
 
+        m_rate_select->Enable(true);
         menuItem->SetItemLabel("&Start");
         m_status_bar->SetStatusText("Ready.");
         m_is_running = false;
+
+        if (m_run_draw_samples->IsChecked())
+            m_compile_output->Refresh();
     }
 }
 
@@ -581,7 +656,7 @@ void MainFrame::onRunLogResults(wxCommandEvent& ce)
 
 void MainFrame::onRunEditBSize(wxCommandEvent&)
 {
-    wxTextEntryDialog dialog (this, "Enter new buffer size (100-4000)", "Set Buffer Size");
+    wxTextEntryDialog dialog (this, "Enter new buffer size (100-4096)", "Set Buffer Size");
     if (dialog.ShowModal() == wxID_OK) {
         if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
             if (unsigned long n; value.ToULong(&n)) {
@@ -667,9 +742,11 @@ void MainFrame::onRunGenStart(wxCommandEvent& ce)
     if (menuItem->IsChecked()) {
         m_device->siggen_start();
         menuItem->SetItemLabel("Stop &generator");
+        m_status_bar->SetStatusText("Generator running.");
     } else {
         m_device->siggen_stop();
         menuItem->SetItemLabel("Start &generator");
+        m_status_bar->SetStatusText("Ready.");
     }
 }
 

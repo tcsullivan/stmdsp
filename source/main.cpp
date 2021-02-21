@@ -52,7 +52,7 @@ static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
 // Thread for LED status and wakeup hold
 __attribute__((section(".stacks")))
 static THD_WORKING_AREA(monitorThreadWA, 4096);
-static THD_FUNCTION(monitorThread, arg);
+/*extern "C"*/static THD_FUNCTION(monitorThread, arg);
 
 // Thread for managing the conversion task
 __attribute__((section(".stacks")))
@@ -161,6 +161,7 @@ THD_FUNCTION(communicationThread, arg)
                 // 'r' - Read or write sample rate.
                 // 'S' - Stop conversion.
                 // 's' - Get latest block of conversion results.
+                // 't' - Get latest block of conversion input.
                 // 'W' - Start signal generator (siggen).
                 // 'w' - Stop siggen.
 
@@ -294,6 +295,28 @@ THD_FUNCTION(communicationThread, arg)
                         };
                         USBSerial::write(buf, 2);
                         unsigned int total = samplesOut.bytesize() / 2;
+                        unsigned int offset = 0;
+                        unsigned char unused;
+                        while (total > 512) {
+                            USBSerial::write(reinterpret_cast<uint8_t *>(samps) + offset, 512);
+                            while (USBSerial::read(&unused, 1) == 0);
+                            offset += 512;
+                            total -= 512;
+                        }
+                        USBSerial::write(reinterpret_cast<uint8_t *>(samps) + offset, total);
+                        while (USBSerial::read(&unused, 1) == 0);
+                    } else {
+                        USBSerial::write(reinterpret_cast<const uint8_t *>("\0\0"), 2);
+                    }
+                    break;
+                case 't':
+                    if (auto samps = samplesIn.modified(); samps != nullptr) {
+                        unsigned char buf[2] = {
+                            static_cast<unsigned char>(samplesIn.size() / 2 & 0xFF),
+                            static_cast<unsigned char>(((samplesIn.size() / 2) >> 8) & 0xFF)
+                        };
+                        USBSerial::write(buf, 2);
+                        unsigned int total = samplesIn.bytesize() / 2;
                         unsigned int offset = 0;
                         unsigned char unused;
                         while (total > 512) {
@@ -455,7 +478,13 @@ void signal_operate(adcsample_t *buffer, size_t)
         chSysUnlockFromISR();
         conversion_abort();
     } else {
-        chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST : MSG_CONVSECOND);
+        if (buffer == samplesIn.data()) {
+            samplesIn.setModified();
+            chMBPostI(&conversionMB, MSG_CONVFIRST);
+        } else {
+            samplesIn.setMidmodified();
+            chMBPostI(&conversionMB, MSG_CONVSECOND);
+        }
         chSysUnlockFromISR();
     }
 }
@@ -463,8 +492,13 @@ void signal_operate(adcsample_t *buffer, size_t)
 void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
 {
     chSysLockFromISR();
-    chMBPostI(&conversionMB, buffer == samplesIn.data() ? MSG_CONVFIRST_MEASURE
-                                                        : MSG_CONVSECOND_MEASURE);
+    if (buffer == samplesIn.data()) {
+        samplesIn.setModified();
+        chMBPostI(&conversionMB, MSG_CONVFIRST_MEASURE);
+    } else {
+        samplesIn.setMidmodified();
+        chMBPostI(&conversionMB, MSG_CONVSECOND_MEASURE);
+    }
     chSysUnlockFromISR();
 
     ADC::setOperation(signal_operate);

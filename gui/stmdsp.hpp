@@ -19,7 +19,7 @@
 
 namespace stmdsp
 {
-    constexpr unsigned int SAMPLES_MAX = 4000;
+    constexpr unsigned int SAMPLES_MAX = 4096;
 
     class scanner
     {
@@ -62,6 +62,7 @@ namespace stmdsp
         void continuous_start_measure();
         uint32_t continuous_start_get_measurement();
         std::vector<adcsample_t> continuous_read();
+        std::vector<adcsample_t> continuous_read_input();
         void continuous_stop();
 
         void siggen_upload(dacsample_t *buffer, unsigned int size);

@@ -120,6 +120,33 @@ namespace stmdsp
         return {};
     }
 
+    std::vector<adcsample_t> device::continuous_read_input() {
+        if (connected()) {
+            m_serial.write("t");
+            unsigned char sizebytes[2];
+            m_serial.read(sizebytes, 2);
+            unsigned int size = sizebytes[0] | (sizebytes[1] << 8);
+            if (size > 0) {
+                std::vector<adcsample_t> data (size);
+                unsigned int total = size * sizeof(adcsample_t);
+                unsigned int offset = 0;
+
+                while (total > 512) {
+                    m_serial.read(reinterpret_cast<uint8_t *>(&data[0]) + offset, 512);
+                    m_serial.write("n");
+                    offset += 512;
+                    total -= 512;
+                }
+                m_serial.read(reinterpret_cast<uint8_t *>(&data[0]) + offset, total);
+                m_serial.write("n");
+                return data;
+
+            }
+        }
+
+        return {};
+    }
+
     void device::continuous_stop() {
         if (connected())
             m_serial.write("S");

@@ -58,7 +58,8 @@ public:
     void onRunCompile(wxCommandEvent&);
     void onCodeDisassemble(wxCommandEvent&);
 
-    void onMeasureTimer(wxTimerEvent& te);
+    void onPaint(wxPaintEvent&);
+    void onMeasureTimer(wxTimerEvent&);
 
 private:
     // Set to true if connected and running
@@ -69,6 +70,7 @@ private:
     wxTextCtrl *m_compile_output = nullptr;
     wxControl *m_signal_area = nullptr;
     wxMenuItem *m_run_measure = nullptr;
+    wxMenuItem *m_run_draw_samples = nullptr;
     wxTimer *m_measure_timer = nullptr;
     wxStatusBar *m_status_bar = nullptr;
     wxMenuBar *m_menu_bar = nullptr;
@@ -87,6 +89,8 @@ private:
     // Device interface
     // Not null if connected
     stmdsp::device *m_device = nullptr;
+    stmdsp::adcsample_t *m_device_samples = nullptr;
+    stmdsp::adcsample_t *m_device_samples_input = nullptr;
     // WAV data for signal generator
     // Not null when a WAV is loaded
     wav::clip *m_wav_clip = nullptr;

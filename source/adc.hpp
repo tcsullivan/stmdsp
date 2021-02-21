@@ -42,6 +42,7 @@ private:
     static size_t m_current_buffer_size;
     static Operation m_operation;
 
+public:
     static void conversionCallback(ADCDriver *);
 };
 

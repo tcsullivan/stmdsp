@@ -9,15 +9,23 @@ void SampleBuffer::clear() {
 __attribute__((section(".convcode")))
 void SampleBuffer::modify(Sample *data, unsigned int srcsize) {
     auto size = srcsize < m_size ? srcsize : m_size;
-    for (Sample *d = data, *s = m_buffer; d != data + size;)
-        *d++ = *s++;
     m_modified = m_buffer;
+    for (Sample *d = m_buffer, *s = data; s != data + size;)
+        *d++ = *s++;
 }
 __attribute__((section(".convcode")))
 void SampleBuffer::midmodify(Sample *data, unsigned int srcsize) {
     auto size = srcsize < m_size / 2 ? srcsize : m_size / 2;
-    for (Sample *d = data, *s = middata(); d != data + size;)
+    m_modified = middata();
+    for (Sample *d = middata(), *s = data; s != data + size;)
         *d++ = *s++;
+}
+
+void SampleBuffer::setModified() {
+    m_modified = m_buffer;
+}
+
+void SampleBuffer::setMidmodified() {
     m_modified = middata();
 }
 

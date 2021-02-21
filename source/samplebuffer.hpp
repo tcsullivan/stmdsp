@@ -6,7 +6,7 @@
 
 using Sample = uint16_t;
 
-// gives 8000 (8192)
+// Gives 8000 (8192) samples total (algorithm works with max 4096).
 constexpr unsigned int MAX_SAMPLE_BUFFER_BYTESIZE = 16384;
 constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = MAX_SAMPLE_BUFFER_BYTESIZE / sizeof(Sample);
 
@@ -19,6 +19,8 @@ public:
 
     void modify(Sample *data, unsigned int srcsize);
     void midmodify(Sample *data, unsigned int srcsize);
+    void setModified();
+    void setMidmodified();
     Sample *modified();
 
     Sample *data();
