@@ -4,4 +4,3 @@ gui/stmdspgui
 **/*.o
 **/*.so
 perf*
-

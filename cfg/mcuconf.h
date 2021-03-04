@@ -32,6 +32,7 @@
  */
 
 #define STM32H7xx_MCUCONF
+#define STM32H723_MCUCONF
 #define STM32H725_MCUCONF
 //#define STM32H743_MCUCONF
 

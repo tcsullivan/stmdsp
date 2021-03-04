@@ -137,7 +137,7 @@ INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -pedantic
 
 # Define C++ warning options here.
-CPPWARN = -Wall -Wextra -Wundef -pedantic
+CPPWARN = -Wall -Wextra -Wundef -pedantic -Wno-volatile
 
 #
 # Project, target, sources and paths

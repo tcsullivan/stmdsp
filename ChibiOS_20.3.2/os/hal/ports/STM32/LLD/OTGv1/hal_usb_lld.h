@@ -229,15 +229,9 @@
 #define STM32_USBCLK                        STM32_48CLK
 #elif  defined(STM32H7XX)
 /* Defines directly STM32_USBCLK.*/
-#if !defined(STM32H723xx)
 #define rccEnableOTG_FS                     rccEnableUSB2_OTG_HS
 #define rccDisableOTG_FS                    rccDisableUSB2_OTG_HS
 #define rccResetOTG_FS                      rccResetUSB2_OTG_HS
-#else
-#define rccEnableOTG_FS                     rccEnableUSB1_OTG_HS
-#define rccDisableOTG_FS                    rccDisableUSB1_OTG_HS
-#define rccResetOTG_FS                      rccResetUSB1_OTG_HS
-#endif
 #define rccEnableOTG_HS                     rccEnableUSB1_OTG_HS
 #define rccDisableOTG_HS                    rccDisableUSB1_OTG_HS
 #define rccResetOTG_HS                      rccResetUSB1_OTG_HS

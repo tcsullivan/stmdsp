@@ -547,12 +547,6 @@ typedef union {
 /* Driver macros.                                                            */
 /*===========================================================================*/
 
-#if STM32_ADC_USE_ADC12 == TRUE
-typedef ADC12_TypeDef ADC_TypeDef;
-#else
-typedef ADC3_TypeDef ADC_TypeDef;
-#endif
-
 /**
  * @brief   Low level fields of the ADC driver structure.
  */
@@ -568,10 +562,20 @@ typedef ADC3_TypeDef ADC_TypeDef;
   adc_ldd_dma_reference_t   data;                                           \
   /* DMA mode bit mask.*/                                                   \
   uint32_t                  dmamode
+#elif (STM32_ADC_USE_ADC3 == TRUE)
+#define adc_lld_driver_fields                                               \
+  /* Pointer to the master ADCx registers block.*/                          \
+  ADC3_TypeDef               *adcm;                                         \
+  /* Pointer to the slave ADCx registers block.*/                           \
+  ADC_Common_TypeDef        *adcc;                                          \
+  /* Pointer to associated DMA channel.*/                                   \
+  adc_ldd_dma_reference_t   data;                                           \
+  /* DMA mode bit mask.*/                                                   \
+  uint32_t                  dmamode
 #else
 #define adc_lld_driver_fields                                               \
   /* Pointer to the master ADCx registers block.*/                          \
-  ADC_TypeDef               *adcm;                                          \
+  ADC12_TypeDef               *adcm;                                        \
   /* Pointer to the slave ADCx registers block.*/                           \
   ADC_Common_TypeDef        *adcc;                                          \
   /* Pointer to associated DMA channel.*/                                   \

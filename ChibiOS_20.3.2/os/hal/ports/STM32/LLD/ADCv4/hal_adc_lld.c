@@ -197,7 +197,7 @@ static void adc_lld_stop_adc(ADCDriver *adcp) {
     while (adcp->adcm->CR & ADC_CR_ADSTP)
       ;
   }
-#if !defined(STM32H723xx) || STM32_ADC_USE_ADC3 == FALSE
+#if (STM32_ADC_USE_ADC12 == TRUE)
   adcp->adcm->PCSEL = 0U;
 #endif
 }
@@ -406,7 +406,7 @@ void adc_lld_init(void) {
 #if STM32_ADC_USE_ADC3 == TRUE
   rccEnableADC3(true);
   rccResetADC3();
-  ADC3_COMMON->CCR = STM32_ADC_ADC3_CLOCK_MODE | STM32_ADC_ADC3_PRESC;
+  ADC3_COMMON->CCR = STM32_ADC_ADC3_CLOCK_MODE;
   rccDisableADC3();
 #endif
 #endif
@@ -538,7 +538,7 @@ void adc_lld_stop(ADCDriver *adcp) {
       adcp->data.bdma = NULL;
 
       /* Resetting CCR options except default ones.*/
-      adcp->adcc->CCR = STM32_ADC_ADC3_CLOCK_MODE | STM32_ADC_ADC3_PRESC;
+      adcp->adcc->CCR = STM32_ADC_ADC3_CLOCK_MODE;
       rccDisableADC3();
     }
 #endif
@@ -639,10 +639,10 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
     adcp->adcm->PCSEL = grpp->pcsel;
     adcp->adcm->LTR1  = grpp->ltr1;
     adcp->adcm->HTR1  = grpp->htr1;
-    adcp->adcm->LTR2  = grpp->ltr2;
-    adcp->adcm->HTR2  = grpp->htr2;
-    adcp->adcm->LTR3  = grpp->ltr3;
-    adcp->adcm->HTR3  = grpp->htr3;
+    adcp->adcm->LTR1  = grpp->ltr2;
+    adcp->adcm->HTR1  = grpp->htr2;
+    adcp->adcm->LTR1  = grpp->ltr3;
+    adcp->adcm->HTR1  = grpp->htr3;
     adcp->adcm->SMPR1 = grpp->smpr[0];
     adcp->adcm->SMPR2 = grpp->smpr[1];
     adcp->adcm->SQR1  = grpp->sqr[0] | ADC_SQR1_NUM_CH(grpp->num_channels / 2);
@@ -653,10 +653,10 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
     adcp->adcs->PCSEL = grpp->pcsel;
     adcp->adcs->LTR1  = grpp->ltr1;
     adcp->adcs->HTR1  = grpp->htr1;
-    adcp->adcs->LTR2  = grpp->ltr2;
-    adcp->adcs->HTR2  = grpp->htr2;
-    adcp->adcs->LTR3  = grpp->ltr3;
-    adcp->adcs->HTR3  = grpp->htr3;
+    adcp->adcs->LTR1  = grpp->ltr2;
+    adcp->adcs->HTR1  = grpp->htr2;
+    adcp->adcs->LTR1  = grpp->ltr3;
+    adcp->adcs->HTR1  = grpp->htr3;
     adcp->adcs->SMPR1 = grpp->ssmpr[0];
     adcp->adcs->SMPR2 = grpp->ssmpr[1];
     adcp->adcs->SQR1  = grpp->ssqr[0] | ADC_SQR1_NUM_CH(grpp->num_channels / 2);
@@ -678,15 +678,15 @@ void adc_lld_start_conversion(ADCDriver *adcp) {
 #endif
   {
     adcp->adcm->CFGR2 = grpp->cfgr2;
-#if !defined(STM32H723xx) || STM32_ADC_USE_ADC3 == FALSE
+#if (STM32_ADC_USE_ADC12 == TRUE)
     adcp->adcm->PCSEL = grpp->pcsel;
 #endif
     adcp->adcm->LTR1  = grpp->ltr1;
     adcp->adcm->HTR1  = grpp->htr1;
-    adcp->adcm->LTR2  = grpp->ltr2;
-    adcp->adcm->HTR2  = grpp->htr2;
-    adcp->adcm->LTR3  = grpp->ltr3;
-    adcp->adcm->HTR3  = grpp->htr3;
+    adcp->adcm->LTR1  = grpp->ltr2;
+    adcp->adcm->HTR1  = grpp->htr2;
+    adcp->adcm->LTR1  = grpp->ltr3;
+    adcp->adcm->HTR1  = grpp->htr3;
     adcp->adcm->SMPR1 = grpp->smpr[0];
     adcp->adcm->SMPR2 = grpp->smpr[1];
     adcp->adcm->SQR1  = grpp->sqr[0] | ADC_SQR1_NUM_CH(grpp->num_channels);

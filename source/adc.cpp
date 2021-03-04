@@ -53,9 +53,37 @@ adcsample_t *ADC::m_current_buffer = nullptr;
 size_t ADC::m_current_buffer_size = 0;
 ADC::Operation ADC::m_operation = nullptr;
 
+//static const ADCConfig m_config2 = {};
+//ADCConversionGroup m_group_config2 = {
+//    .circular = false,
+//    .num_channels = 1,
+//    .end_cb = nullptr,
+//    .error_cb = nullptr,
+//    .cfgr = 0,
+//    .cfgr2 = 0,
+//    .ccr = 0,
+//    .pcsel = 0,
+//    .ltr1 = 0, .htr1 = 0x0FFF,
+//    .ltr2 = 0, .htr2 = 0x0FFF,
+//    .ltr3 = 0, .htr3 = 0x0FFF,
+//    .smpr = {
+//        ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5), 0
+//    },
+//    .sqr = {
+//        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN10),
+//        0, 0, 0
+//    },
+//};
+
 void ADC::begin()
 {
     palSetPadMode(GPIOF, 3, PAL_MODE_INPUT_ANALOG);
+
+    //palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG);
+    //adcStart(&ADCD1, &m_config2);
+    //adcsample_t val = 0;
+    //adcConvert(&ADCD1, &m_group_config2, &val, 1);
+    //adcStop(&ADCD1);
 
     adcStart(m_driver, &m_config);
     adcSTM32EnableVREF(m_driver);
