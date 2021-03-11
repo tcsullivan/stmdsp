@@ -3,6 +3,9 @@
 # NOTE: Can be overridden externally.
 #
 
+# Set the target platform, either L4, G4, or H7
+TARGET_PLATFORM = L4
+
 # Compiler options here.
 ifeq ($(USE_OPT),)
   USE_OPT = -O0 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
@@ -55,13 +58,13 @@ endif
 # Stack size to be allocated to the Cortex-M process stack. This stack is
 # the stack used by the main() thread.
 ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 0x1000
+  USE_PROCESS_STACKSIZE = 1024
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 0x1000
+  USE_EXCEPTIONS_STACKSIZE = 2048
 endif
 
 # Enables the use of FPU (no, softfp, hard).
@@ -71,7 +74,12 @@ endif
 
 # FPU-related options.
 ifeq ($(USE_FPU_OPT),)
+ifeq ($(TARGET_PLATFORM),H7)
   USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv5-d16
+endif
+ifeq ($(TARGET_PLATFORM),L4)
+  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv4-sp-d16
+endif
 endif
 
 #
@@ -86,7 +94,11 @@ endif
 PROJECT = ch
 
 # Target settings.
-MCU  = cortex-m7
+ifeq ($(TARGET_PLATFORM),H7)
+  MCU = cortex-m7
+else
+  MCU = cortex-m4
+endif
 
 # Imported source files and paths.
 CHIBIOS  := ./ChibiOS_20.3.2
@@ -97,10 +109,18 @@ DEPDIR   := ./.dep
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
-include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32h7xx.mk
+ifeq ($(TARGET_PLATFORM),H7)
+  include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32h7xx.mk
+else
+  include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
+endif
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/ports/STM32/STM32H7xx/platform.mk
+ifeq ($(TARGET_PLATFORM),H7)
+  include $(CHIBIOS)/os/hal/ports/STM32/STM32H7xx/platform.mk
+else
+  include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
+endif
 include ./board/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
@@ -114,7 +134,11 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 #include $(CHIBIOS)/test/oslib/oslib_test.mk
 
 # Define linker script file here
-LDSCRIPT= STM32H723xG.ld
+ifeq ($(TARGET_PLATFORM),H7)
+  LDSCRIPT = STM32H723xG.ld
+else
+  LDSCRIPT = STM32L476xG.ld
+endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -150,7 +174,8 @@ CPPWARN = -Wall -Wextra -Wundef -pedantic -Wno-volatile
 # List all user C define here, like -D_DEBUG=1
 UDEFS = -DCORTEX_ENABLE_WFI_IDLE=TRUE \
 		-DPORT_USE_SYSCALL=TRUE \
-		-DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0
+		-DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0 \
+		-DTARGET_PLATFORM_$(TARGET_PLATFORM)
 
 # Define ASM defines here
 UADEFS =

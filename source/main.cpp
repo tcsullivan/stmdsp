@@ -26,7 +26,7 @@ static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 
 #include <array>
 
-constexpr unsigned int MAX_ELF_FILE_SIZE = 8 * 1024;
+constexpr unsigned int MAX_ELF_FILE_SIZE = 16 * 1024;
 
 enum class RunStatus : char
 {
@@ -50,13 +50,15 @@ static msg_t conversionMBBuffer[2];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
 
 // Thread for LED status and wakeup hold
+#if defined(TARGET_PLATFORM_H7)
 __attribute__((section(".stacks")))
-static THD_WORKING_AREA(monitorThreadWA, 4096);
-/*extern "C"*/static THD_FUNCTION(monitorThread, arg);
+static THD_WORKING_AREA(monitorThreadWA, 1024);
+static THD_FUNCTION(monitorThread, arg);
+#endif
 
 // Thread for managing the conversion task
 __attribute__((section(".stacks")))
-static THD_WORKING_AREA(conversionThreadMonitorWA, 4096);
+static THD_WORKING_AREA(conversionThreadMonitorWA, 1024);
 static THD_FUNCTION(conversionThreadMonitor, arg);
 static thread_t *conversionThreadHandle = nullptr;
 
@@ -64,8 +66,14 @@ static thread_t *conversionThreadHandle = nullptr;
 __attribute__((section(".stacks")))
 static THD_WORKING_AREA(conversionThreadWA, 128); // All we do is enter unprivileged mode.
 static THD_FUNCTION(conversionThread, arg);
+constexpr unsigned int conversionThreadUPWASize = 
+#if defined(TARGET_PLATFORM_H7)
+                                                  62 * 1024;
+#else
+                                                  15 * 1024;
+#endif
 __attribute__((section(".convdata")))
-static THD_WORKING_AREA(conversionThreadUPWA, 62 * 1024);
+static THD_WORKING_AREA(conversionThreadUPWA, conversionThreadUPWASize);
 __attribute__((section(".convdata")))
 static thread_t *conversionThreadMonitorHandle = nullptr;
 
@@ -75,12 +83,19 @@ static THD_WORKING_AREA(communicationThreadWA, 4096);
 static THD_FUNCTION(communicationThread, arg);
 
 static time_measurement_t conversion_time_measurement;
+#if defined(TARGET_PLATFORM_H7)
 __attribute__((section(".convdata")))
 static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000)); // 16k
 __attribute__((section(".convdata")))
 static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x30004000)); // 16k
-
 static SampleBuffer samplesSigGen (reinterpret_cast<Sample *>(0x30000000)); // 16k
+#else
+__attribute__((section(".convdata")))
+static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x20008000)); // 16k
+__attribute__((section(".convdata")))
+static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x2000C000)); // 16k
+static SampleBuffer samplesSigGen (reinterpret_cast<Sample *>(0x20010000)); // 16k
+#endif
 
 static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 __attribute__((section(".convdata")))
@@ -108,16 +123,18 @@ int main()
     DAC::begin();
     SClock::begin();
     USBSerial::begin();
-    math::init();
+    cordic::init();
 
     SClock::setRate(SClock::Rate::R32K);
     ADC::setRate(SClock::Rate::R32K);
 
     chTMObjectInit(&conversion_time_measurement);
+#if defined(TARGET_PLATFORM_H7)
     chThdCreateStatic(
         monitorThreadWA, sizeof(monitorThreadWA),
         LOWPRIO,
         monitorThread, nullptr);
+#endif
     conversionThreadMonitorHandle = chThdCreateStatic(
         conversionThreadMonitorWA, sizeof(conversionThreadMonitorWA),
         NORMALPRIO + 1,
@@ -126,7 +143,8 @@ int main()
         conversionThreadWA, sizeof(conversionThreadWA),
         HIGHPRIO,
         conversionThread,
-        reinterpret_cast<void *>(reinterpret_cast<uint32_t>(conversionThreadUPWA) + 62 * 1024));
+        reinterpret_cast<void *>(reinterpret_cast<uint32_t>(conversionThreadUPWA) +
+                                 conversionThreadUPWASize));
     chThdCreateStatic(
         communicationThreadWA, sizeof(communicationThreadWA),
         NORMALPRIO,
@@ -222,7 +240,11 @@ THD_FUNCTION(communicationThread, arg)
 
                 // 'i' - Sends an identifying string to confirm that this is the stmdsp device.
                 case 'i':
-                    USBSerial::write(reinterpret_cast<const uint8_t *>("stmdsp"), 6);
+#if defined(TARGET_PLATFORM_H7)
+                    USBSerial::write(reinterpret_cast<const uint8_t *>("stmdsph"), 7);
+#else
+                    USBSerial::write(reinterpret_cast<const uint8_t *>("stmdspl"), 7);
+#endif
                     break;
 
                 // 'I' - Sends the current run status.
@@ -370,11 +392,13 @@ THD_FUNCTION(conversionThread, stack)
                            reinterpret_cast<uint32_t>(stack));
 }
 
+#if defined(TARGET_PLATFORM_H7)
 THD_FUNCTION(monitorThread, arg)
 {
     (void)arg;
 
-    bool erroron = false;
+    palSetLineMode(LINE_BUTTON, PAL_MODE_INPUT_PULLUP);
+
     while (1) {
         bool isidle = run_status == RunStatus::Idle;
         auto led = isidle ? LINE_LED_GREEN : LINE_LED_YELLOW;
@@ -399,6 +423,7 @@ THD_FUNCTION(monitorThread, arg)
             chThdSleepMilliseconds(500);
         }
 
+        static bool erroron = false;
         if (auto err = EM.hasError(); err ^ erroron) {
             erroron = err;
             if (err)
@@ -408,6 +433,7 @@ THD_FUNCTION(monitorThread, arg)
         }
     }
 }
+#endif
 
 void conversion_unprivileged_main()
 {
@@ -439,24 +465,45 @@ void conversion_unprivileged_main()
 void mpu_setup()
 {
     // Set up MPU for user algorithm
-    // Region 2: Data for algorithm manager thread
+#if defined(TARGET_PLATFORM_H7)
+    // Region 2: Data for algorithm thread
+    // Region 3: Code for algorithm thread
+    // Region 4: User algorithm code
     mpuConfigureRegion(MPU_REGION_2,
                        0x20000000,
                        MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
                        MPU_RASR_SIZE_64K |
                        MPU_RASR_ENABLE);
-    // Region 3: Code for algorithm manager thread
     mpuConfigureRegion(MPU_REGION_3,
                        0x0807F800,
                        MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
                        MPU_RASR_SIZE_2K |
                        MPU_RASR_ENABLE);
-    // Region 4: Algorithm code
     mpuConfigureRegion(MPU_REGION_4,
                        0x00000000,
                        MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
                        MPU_RASR_SIZE_64K |
                        MPU_RASR_ENABLE);
+#else
+    // Region 2: Data for algorithm thread and ADC/DAC buffers
+    // Region 3: Code for algorithm thread
+    // Region 4: User algorithm code
+    mpuConfigureRegion(MPU_REGION_2,
+                       0x20008000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_128K|
+                       MPU_RASR_ENABLE);
+    mpuConfigureRegion(MPU_REGION_3,
+                       0x0807F800,
+                       MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_2K |
+                       MPU_RASR_ENABLE);
+    mpuConfigureRegion(MPU_REGION_4,
+                       0x10000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_32K |
+                       MPU_RASR_ENABLE);
+#endif
 }
 
 void conversion_abort()
@@ -523,19 +570,28 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
     case 1:
         {
             using mathcall = void (*)();
-            static mathcall funcs[4] = {
-                reinterpret_cast<mathcall>(math::sin),
-                reinterpret_cast<mathcall>(math::cos),
-                reinterpret_cast<mathcall>(math::tan),
-                reinterpret_cast<mathcall>(math::sqrt),
+            static mathcall funcs[3] = {
+                reinterpret_cast<mathcall>(cordic::sin),
+                reinterpret_cast<mathcall>(cordic::cos),
+                reinterpret_cast<mathcall>(cordic::tan),
             };
+#if defined(PLATFORM_H7)
             asm("vmov.f64 d0, %0, %1" :: "r" (ctxp->r1), "r" (ctxp->r2));
-            if (ctxp->r0 < 4) {
+            if (ctxp->r0 < 3) {
                 funcs[ctxp->r0]();
                 asm("vmov.f64 %0, %1, d0" : "=r" (ctxp->r1), "=r" (ctxp->r2));
             } else {
                 asm("eor r0, r0; vmov.f64 d0, r0, r0");
             }
+#else
+            asm("vmov.f32 s0, %0" :: "r" (ctxp->r1));
+            if (ctxp->r0 < 3) {
+                funcs[ctxp->r0]();
+                asm("vmov.f32 %0, s0" : "=r" (ctxp->r1));
+            } else {
+                asm("eor r0, r0; vmov.f32 s0, r0");
+            }
+#endif
         }
         break;
     case 2:
@@ -550,6 +606,9 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
             if (conversion_time_measurement.last > measurement_overhead)
                 conversion_time_measurement.last -= measurement_overhead;
         }
+        break;
+    case 3:
+        ctxp->r0 = ADC::readAlt(0);
         break;
     default:
         while (1);

@@ -6,8 +6,7 @@
 
 using Sample = uint16_t;
 
-// Gives 8000 (8192) samples total (algorithm works with max 4096).
-constexpr unsigned int MAX_SAMPLE_BUFFER_BYTESIZE = 16384;
+constexpr unsigned int MAX_SAMPLE_BUFFER_BYTESIZE = sizeof(Sample) * 8192;
 constexpr unsigned int MAX_SAMPLE_BUFFER_SIZE = MAX_SAMPLE_BUFFER_BYTESIZE / sizeof(Sample);
 
 class SampleBuffer

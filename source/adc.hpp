@@ -27,16 +27,19 @@ public:
     static void start(adcsample_t *buffer, size_t count, Operation operation);
     static void stop();
 
+    static adcsample_t readAlt(unsigned int id);
+
     static void setRate(SClock::Rate rate);
     static void setOperation(Operation operation);
 
 private:
     static ADCDriver *m_driver;
+    static ADCDriver *m_driver2;
 
     static const ADCConfig m_config;
+    static const ADCConfig m_config2;
     static ADCConversionGroup m_group_config;
-
-    static std::array<std::array<uint32_t, 2>, 6> m_rate_presets;
+    static ADCConversionGroup m_group_config2;
 
     static adcsample_t *m_current_buffer;
     static size_t m_current_buffer_size;

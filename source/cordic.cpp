@@ -1,7 +1,8 @@
 #include "cordic.hpp"
 #include "hal.h"
 
-namespace math {
+namespace cordic {
+#if !defined(TARGET_PLATFORM_L4)
 
 void init()
 {
@@ -92,11 +93,16 @@ double tan(double x) {
     return tanx;
 }
 
-__attribute__((naked))
-double sqrt(double) {
-    asm("vsqrt.f64 d0, d0; bx lr");
-    return 0.;
-}
+#else // L4
 
+void init() {}
+
+double mod(double, double) { return 0; }
+
+double cos(double) { return 0; }
+double sin(double) { return 0; }
+double tan(double) { return 0; }
+
+#endif
 }
 

@@ -5,19 +5,27 @@ unsigned int SClock::m_div = 1;
 unsigned int SClock::m_runcount = 0;
 
 const GPTConfig SClock::m_timer_config = {
+#if defined(TARGET_PLATFORM_H7)
     .frequency = 4800000,
+#else
+    .frequency = 36000000,
+#endif
     .callback = nullptr,
     .cr2 = TIM_CR2_MMS_1, /* TRGO */
     .dier = 0
 };
 
 const std::array<unsigned int, 6> SClock::m_rate_divs = {{
+#if defined(TARGET_PLATFORM_H7)
     /* 8k  */ 600,
     /* 16k */ 300,
     /* 20k */ 240,
     /* 32k */ 150,
     /* 48k */ 100,
     /* 96k */ 50
+#else
+    4500, 2250, 1800, 1125, 750, 375
+#endif
 }};
 
 void SClock::begin()

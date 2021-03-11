@@ -11,11 +11,26 @@
 
 #include "adc.hpp"
 
+#if defined(TARGET_PLATFORM_L4)
+ADCDriver *ADC::m_driver = &ADCD1;
+ADCDriver *ADC::m_driver2 = &ADCD3;
+#else
 ADCDriver *ADC::m_driver = &ADCD3;
+//ADCDriver *ADC::m_driver2 = &ADCD1; // TODO
+#endif
 
 const ADCConfig ADC::m_config = {
     .difsel = 0,
+#if defined(TARGET_PLATFORM_H7)
     .calibration = 0,
+#endif
+};
+
+const ADCConfig ADC::m_config2 = {
+    .difsel = 0,
+#if defined(TARGET_PLATFORM_H7)
+    .calibration = 0,
+#endif
 };
 
 ADCConversionGroup ADC::m_group_config = {
@@ -25,11 +40,19 @@ ADCConversionGroup ADC::m_group_config = {
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
     .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
+#if defined(TARGET_PLATFORM_H7)
     .ccr = 0,
     .pcsel = 0,
-    .ltr1 = 0, .htr1 = 0x0FFF,
-    .ltr2 = 0, .htr2 = 0x0FFF,
-    .ltr3 = 0, .htr3 = 0x0FFF,
+    .ltr1 = 0, .htr1 = 4095,
+    .ltr2 = 0, .htr2 = 4095,
+    .ltr3 = 0, .htr3 = 4095,
+#else
+    .tr1 = ADC_TR(0, 4095),
+    .tr2 = ADC_TR(0, 4095),
+    .tr3 = ADC_TR(0, 4095),
+    .awd2cr = 0,
+    .awd3cr = 0,
+#endif
     .smpr = {
         ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5), 0
     },
@@ -39,54 +62,55 @@ ADCConversionGroup ADC::m_group_config = {
     },
 };
 
-std::array<std::array<uint32_t, 2>, 6> ADC::m_rate_presets = {{
-     // Rate   PLL N  PLL P
-    {/* 8k  */ 80,    20},
-    {/* 16k */ 80,    10},
-    {/* 20k */ 80,    8},
-    {/* 32k */ 80,    5},
-    {/* 48k */ 96,    4},
-    {/* 96k */ 288,   10}
-}};
+static bool readAltDone = false;
+static void readAltCallback(ADCDriver *)
+{
+    readAltDone = true;
+}
+ADCConversionGroup ADC::m_group_config2 = {
+    .circular = false,
+    .num_channels = 1,
+    .end_cb = readAltCallback,
+    .error_cb = nullptr,
+    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
+    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
+#if defined(TARGET_PLATFORM_H7)
+    .ccr = 0,
+    .pcsel = 0,
+    .ltr1 = 0, .htr1 = 4095,
+    .ltr2 = 0, .htr2 = 4095,
+    .ltr3 = 0, .htr3 = 4095,
+#else
+    .tr1 = ADC_TR(0, 4095),
+    .tr2 = ADC_TR(0, 4095),
+    .tr3 = ADC_TR(0, 4095),
+    .awd2cr = 0,
+    .awd3cr = 0,
+#endif
+    .smpr = {
+        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_12P5), 0
+    },
+    .sqr = {
+        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1),
+        0, 0, 0
+    },
+};
 
 adcsample_t *ADC::m_current_buffer = nullptr;
 size_t ADC::m_current_buffer_size = 0;
 ADC::Operation ADC::m_operation = nullptr;
 
-//static const ADCConfig m_config2 = {};
-//ADCConversionGroup m_group_config2 = {
-//    .circular = false,
-//    .num_channels = 1,
-//    .end_cb = nullptr,
-//    .error_cb = nullptr,
-//    .cfgr = 0,
-//    .cfgr2 = 0,
-//    .ccr = 0,
-//    .pcsel = 0,
-//    .ltr1 = 0, .htr1 = 0x0FFF,
-//    .ltr2 = 0, .htr2 = 0x0FFF,
-//    .ltr3 = 0, .htr3 = 0x0FFF,
-//    .smpr = {
-//        ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5), 0
-//    },
-//    .sqr = {
-//        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN10),
-//        0, 0, 0
-//    },
-//};
-
 void ADC::begin()
 {
+#if defined(TARGET_PLATFORM_H7)
     palSetPadMode(GPIOF, 3, PAL_MODE_INPUT_ANALOG);
-
-    //palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG);
-    //adcStart(&ADCD1, &m_config2);
-    //adcsample_t val = 0;
-    //adcConvert(&ADCD1, &m_group_config2, &val, 1);
-    //adcStop(&ADCD1);
+#else
+    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG); // Algorithm in
+    palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG); // Potentiometer 1
+#endif
 
     adcStart(m_driver, &m_config);
-    adcSTM32EnableVREF(m_driver);
+    adcStart(m_driver2, &m_config2);
 }
 
 void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
@@ -109,8 +133,32 @@ void ADC::stop()
     m_operation = nullptr;
 }
 
+adcsample_t ADC::readAlt(unsigned int id)
+{
+    if (id != 0)
+        return 0;
+    static adcsample_t result[32] = {};
+    readAltDone = false;
+    adcStartConversion(m_driver2, &m_group_config2, result, 32);
+    while (!readAltDone)
+        ;
+    adcStopConversion(m_driver2);
+    return result[0];
+}
+
 void ADC::setRate(SClock::Rate rate)
 {
+#if defined(TARGET_PLATFORM_H7)
+    std::array<std::array<uint32_t, 2>, 6> m_rate_presets = {{
+         // Rate   PLL N  PLL P
+        {/* 8k  */ 80,    20},
+        {/* 16k */ 80,    10},
+        {/* 20k */ 80,    8},
+        {/* 32k */ 80,    5},
+        {/* 48k */ 96,    4},
+        {/* 96k */ 288,   10}
+    }};
+
     auto& preset = m_rate_presets[static_cast<unsigned int>(rate)];
     auto pllbits = (preset[0] << RCC_PLL2DIVR_N2_Pos) |
                    (preset[1] << RCC_PLL2DIVR_P2_Pos);
@@ -131,6 +179,33 @@ void ADC::setRate(SClock::Rate rate)
                                                         : ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
 
     adcStart(m_driver, &m_config);
+#elif defined(TARGET_PLATFORM_L4)
+    std::array<std::array<uint32_t, 3>, 6> m_rate_presets = {{
+        //  Rate   PLLSAI2N  R  OVERSAMPLE
+        {/* 8k  */ 16,       3, 1},
+        {/* 16k */ 32,       3, 1},
+        {/* 20k */ 40,       3, 1},
+        {/* 32k */ 64,       3, 1},
+        {/* 48k */ 24,       3, 0},
+        {/* 96k */ 48,       3, 0}
+    }};
+
+    auto& preset = m_rate_presets[static_cast<int>(rate)];
+    auto pllnr = (preset[0] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos) |
+                 (preset[1] << RCC_PLLSAI2CFGR_PLLSAI2R_Pos);
+    bool oversample = preset[2] != 0;
+
+    // Adjust PLLSAI2
+    RCC->CR &= ~(RCC_CR_PLLSAI2ON);
+    while ((RCC->CR & RCC_CR_PLLSAI2RDY) == RCC_CR_PLLSAI2RDY);
+    RCC->PLLSAI2CFGR = (RCC->PLLSAI2CFGR & ~(RCC_PLLSAI2CFGR_PLLSAI2N_Msk | RCC_PLLSAI2CFGR_PLLSAI2R_Msk)) | pllnr;
+    RCC->CR |= RCC_CR_PLLSAI2ON;
+    while ((RCC->CR & RCC_CR_PLLSAI2RDY) != RCC_CR_PLLSAI2RDY);
+
+    // Set 2x oversampling
+    m_group_config.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
+    m_group_config2.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
+#endif
 }
 
 void ADC::setOperation(ADC::Operation operation)

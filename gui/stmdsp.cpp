@@ -31,8 +31,16 @@ namespace stmdsp
     {
         if (m_serial.isOpen()) {
            m_serial.write("i");
-           if (m_serial.read(6) != "stmdsp")
+           if (auto id = m_serial.read(7); id.starts_with("stmdsp")) {
+                if (id.back() == 'h')
+                    m_platform = platform::H7;
+                else if (id.back() == 'l')
+                    m_platform = platform::L4;
+                else
+                    m_serial.close();
+           } else {
                m_serial.close();
+           }
         }
     }
 

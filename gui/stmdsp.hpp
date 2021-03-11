@@ -39,6 +39,13 @@ namespace stmdsp
     using adcsample_t = uint16_t;
     using dacsample_t = uint16_t;
 
+    enum class platform {
+        Unknown,
+        H7,
+        L4,
+        G4
+    };
+
     class device
     {
     public:
@@ -52,8 +59,7 @@ namespace stmdsp
             return m_serial.isOpen();
         }
 
-        //std::vector<adcsample_t> sample(unsigned long int count = 1);
-
+        auto get_platform() const { return m_platform; }
         void continuous_set_buffer_size(unsigned int size);
         unsigned int get_buffer_size() const { return m_buffer_size; }
         void set_sample_rate(unsigned int id);
@@ -76,6 +82,7 @@ namespace stmdsp
 
     private:
         serial::Serial m_serial;
+        platform m_platform = platform::Unknown;
         unsigned int m_buffer_size = SAMPLES_MAX;
         bool m_is_siggening = false;
     };
