@@ -1,8 +1,8 @@
 #include "cordic.hpp"
 #include "hal.h"
 
-namespace cordic {
 #if !defined(TARGET_PLATFORM_L4)
+namespace cordic {
 
 void init()
 {
@@ -93,16 +93,21 @@ double tan(double x) {
     return tanx;
 }
 
+}
 #else // L4
+#include <cmath>
+namespace cordic {
 
 void init() {}
 
-double mod(double, double) { return 0; }
-
-double cos(double) { return 0; }
-double sin(double) { return 0; }
-double tan(double) { return 0; }
-
-#endif
+float mod(float a, float b) {
+    return a - (b * std::floor(a / b));
 }
+
+float cos(float x) { return std::cos(x); }
+float sin(float x) { return std::sin(x); }
+float tan(float x) { return std::tan(x); }
+
+}
+#endif
 

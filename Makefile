@@ -187,7 +187,11 @@ UINCDIR =
 ULIBDIR =
 
 # List all user libraries here
-ULIBS =
+ifeq ($(TARGET_PLATFORM),L4)
+  ULIBS = -lm
+else
+  ULIBS =
+endif
 
 #
 # End of user section

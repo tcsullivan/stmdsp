@@ -122,6 +122,12 @@ asm("vsqrt.f64 d0, d0; bx lr");
 return 0;
 }
 
+auto readalt() {
+adcsample_t s;
+asm("svc 3; mov %0, r0" : "=&r"(s));
+return s;
+}
+
 // End stmdspgui header code
 
 )cpp";
@@ -156,7 +162,7 @@ asm("vmov.f32 r1, s0;"
 return 0;
 }
 __attribute__((naked))
-auto tan(double x) {
+auto tan(float x) {
 asm("vmov.f32 r1, s0;"
 	"mov r0, #2;"
 	"svc 1;"
@@ -168,6 +174,12 @@ __attribute__((naked))
 auto sqrt(float) {
 asm("vsqrt.f32 s0, s0; bx lr");
 return 0;
+}
+
+auto readalt() {
+adcsample_t s;
+asm("push {r4-r6}; svc 3; mov %0, r0; pop {r4-r6}" : "=&r"(s));
+return s;
 }
 
 // End stmdspgui header code
@@ -472,6 +484,11 @@ void MainFrame::prepareEditor()
 
 wxString MainFrame::compileEditorCode()
 {
+    if (m_device == nullptr) {
+        m_status_bar->SetStatusText("Need device connected to compile.");
+        return "";
+    }
+
     if (m_temp_file_name.IsEmpty())
         m_temp_file_name = wxFileName::CreateTempFileName("stmdspgui");
 
