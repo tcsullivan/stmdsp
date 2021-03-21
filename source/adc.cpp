@@ -11,11 +11,26 @@
 
 #include "adc.hpp"
 
+#if defined(TARGET_PLATFORM_L4)
 ADCDriver *ADC::m_driver = &ADCD1;
-GPTDriver *ADC::m_timer = &GPTD6;
+ADCDriver *ADC::m_driver2 = &ADCD3;
+#else
+ADCDriver *ADC::m_driver = &ADCD3;
+//ADCDriver *ADC::m_driver2 = &ADCD1; // TODO
+#endif
 
 const ADCConfig ADC::m_config = {
-    .difsel = 0
+    .difsel = 0,
+#if defined(TARGET_PLATFORM_H7)
+    .calibration = 0,
+#endif
+};
+
+const ADCConfig ADC::m_config2 = {
+    .difsel = 0,
+#if defined(TARGET_PLATFORM_H7)
+    .calibration = 0,
+#endif
 };
 
 ADCConversionGroup ADC::m_group_config = {
@@ -24,49 +39,78 @@ ADCConversionGroup ADC::m_group_config = {
     .end_cb = ADC::conversionCallback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
-    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1, // Oversampling 2x
+    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
+#if defined(TARGET_PLATFORM_H7)
+    .ccr = 0,
+    .pcsel = 0,
+    .ltr1 = 0, .htr1 = 4095,
+    .ltr2 = 0, .htr2 = 4095,
+    .ltr3 = 0, .htr3 = 4095,
+#else
     .tr1 = ADC_TR(0, 4095),
+    .tr2 = ADC_TR(0, 4095),
+    .tr3 = ADC_TR(0, 4095),
+    .awd2cr = 0,
+    .awd3cr = 0,
+#endif
     .smpr = {
         ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5), 0
     },
     .sqr = {
         ADC_SQR1_SQ1_N(ADC_CHANNEL_IN5),
         0, 0, 0
-    }
+    },
 };
 
-const GPTConfig ADC::m_timer_config = {
-    .frequency = 36000000,
-    .callback = nullptr,
-    .cr2 = TIM_CR2_MMS_1, /* TRGO */
-    .dier = 0
+static bool readAltDone = false;
+static void readAltCallback(ADCDriver *)
+{
+    readAltDone = true;
+}
+ADCConversionGroup ADC::m_group_config2 = {
+    .circular = false,
+    .num_channels = 1,
+    .end_cb = readAltCallback,
+    .error_cb = nullptr,
+    .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
+    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
+#if defined(TARGET_PLATFORM_H7)
+    .ccr = 0,
+    .pcsel = 0,
+    .ltr1 = 0, .htr1 = 4095,
+    .ltr2 = 0, .htr2 = 4095,
+    .ltr3 = 0, .htr3 = 4095,
+#else
+    .tr1 = ADC_TR(0, 4095),
+    .tr2 = ADC_TR(0, 4095),
+    .tr3 = ADC_TR(0, 4095),
+    .awd2cr = 0,
+    .awd3cr = 0,
+#endif
+    .smpr = {
+        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_12P5), 0
+    },
+    .sqr = {
+        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1),
+        0, 0, 0
+    },
 };
-
-std::array<std::array<uint32_t, 4>, 6> ADC::m_rate_presets = {{
-     // Rate   PLLSAI2N  R  OVERSAMPLE 2x?  GPT_DIV
-    {/* 8k  */ 16,       3, 1,              4500},
-    {/* 16k */ 32,       3, 1,              2250},
-    {/* 20k */ 40,       3, 1,              1800},
-    {/* 32k */ 64,       3, 1,              1125},
-    {/* 48k */ 24,       3, 0,               750},
-    {/* 96k */ 48,       3, 0,               375}
-}};
 
 adcsample_t *ADC::m_current_buffer = nullptr;
 size_t ADC::m_current_buffer_size = 0;
 ADC::Operation ADC::m_operation = nullptr;
 
-unsigned int ADC::m_timer_divisor = 2;
-
 void ADC::begin()
 {
-    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
+#if defined(TARGET_PLATFORM_H7)
+    palSetPadMode(GPIOF, 3, PAL_MODE_INPUT_ANALOG);
+#else
+    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG); // Algorithm in
+    palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG); // Potentiometer 1
+#endif
 
     adcStart(m_driver, &m_config);
-    adcSTM32EnableVREF(m_driver);
-    gptStart(m_timer, &m_timer_config);
-
-    setRate(Rate::R32K);
+    adcStart(m_driver2, &m_config2);
 }
 
 void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
@@ -76,12 +120,12 @@ void ADC::start(adcsample_t *buffer, size_t count, Operation operation)
     m_operation = operation;
 
     adcStartConversion(m_driver, &m_group_config, buffer, count);
-    gptStartContinuous(m_timer, m_timer_divisor);
+    SClock::start();
 }
 
 void ADC::stop()
 {
-    gptStopTimer(m_timer);
+    SClock::stop();
     adcStopConversion(m_driver);
 
     m_current_buffer = nullptr;
@@ -89,15 +133,67 @@ void ADC::stop()
     m_operation = nullptr;
 }
 
-void ADC::setRate(ADC::Rate rate)
+adcsample_t ADC::readAlt(unsigned int id)
 {
+    if (id != 0)
+        return 0;
+    static adcsample_t result[32] = {};
+    readAltDone = false;
+    adcStartConversion(m_driver2, &m_group_config2, result, 32);
+    while (!readAltDone)
+        ;
+    adcStopConversion(m_driver2);
+    return result[0];
+}
+
+void ADC::setRate(SClock::Rate rate)
+{
+#if defined(TARGET_PLATFORM_H7)
+    std::array<std::array<uint32_t, 2>, 6> m_rate_presets = {{
+         // Rate   PLL N  PLL P
+        {/* 8k  */ 80,    20},
+        {/* 16k */ 80,    10},
+        {/* 20k */ 80,    8},
+        {/* 32k */ 80,    5},
+        {/* 48k */ 96,    4},
+        {/* 96k */ 288,   10}
+    }};
+
+    auto& preset = m_rate_presets[static_cast<unsigned int>(rate)];
+    auto pllbits = (preset[0] << RCC_PLL2DIVR_N2_Pos) |
+                   (preset[1] << RCC_PLL2DIVR_P2_Pos);
+
+    adcStop(m_driver);
+
+    // Adjust PLL2
+    RCC->CR &= ~(RCC_CR_PLL2ON);
+    while ((RCC->CR & RCC_CR_PLL2RDY) == RCC_CR_PLL2RDY);
+    auto pll2divr = RCC->PLL2DIVR &
+                    ~(RCC_PLL2DIVR_N2_Msk | RCC_PLL2DIVR_P2_Msk);
+    pll2divr |= pllbits;
+    RCC->PLL2DIVR = pll2divr;
+    RCC->CR |= RCC_CR_PLL2ON;
+    while ((RCC->CR & RCC_CR_PLL2RDY) != RCC_CR_PLL2RDY);
+
+    m_group_config.smpr[0] = rate != SClock::Rate::R96K ? ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_12P5)
+                                                        : ADC_SMPR1_SMP_AN5(ADC_SMPR_SMP_2P5);
+
+    adcStart(m_driver, &m_config);
+#elif defined(TARGET_PLATFORM_L4)
+    std::array<std::array<uint32_t, 3>, 6> m_rate_presets = {{
+        //  Rate   PLLSAI2N  R  OVERSAMPLE
+        {/* 8k  */ 16,       3, 1},
+        {/* 16k */ 32,       3, 1},
+        {/* 20k */ 40,       3, 1},
+        {/* 32k */ 64,       3, 1},
+        {/* 48k */ 24,       3, 0},
+        {/* 96k */ 48,       3, 0}
+    }};
+
     auto& preset = m_rate_presets[static_cast<int>(rate)];
     auto pllnr = (preset[0] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos) |
                  (preset[1] << RCC_PLLSAI2CFGR_PLLSAI2R_Pos);
     bool oversample = preset[2] != 0;
-    m_timer_divisor = preset[3];
-
-    adcStop(m_driver);
 
     // Adjust PLLSAI2
     RCC->CR &= ~(RCC_CR_PLLSAI2ON);
@@ -108,8 +204,8 @@ void ADC::setRate(ADC::Rate rate)
 
     // Set 2x oversampling
     m_group_config.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
-
-    adcStart(m_driver, &m_config);
+    m_group_config2.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
+#endif
 }
 
 void ADC::setOperation(ADC::Operation operation)
@@ -117,21 +213,6 @@ void ADC::setOperation(ADC::Operation operation)
     m_operation = operation;
 }
 
-int ADC::getRate()
-{
-    for (unsigned int i = 0; i < m_rate_presets.size(); i++) {
-        if (m_timer_divisor == m_rate_presets[i][3])
-            return i;
-    }
-
-    return -1;
-}
-
-unsigned int ADC::getTimerDivisor()
-{
-    return m_timer_divisor;
-}
- 
 void ADC::conversionCallback(ADCDriver *driver)
 {
     if (m_operation != nullptr) {

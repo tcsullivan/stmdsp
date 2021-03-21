@@ -13,6 +13,7 @@
 #define STMDSP_ADC_HPP_
 
 #include "hal.h"
+#include "sclock.hpp"
 
 #include <array>
 
@@ -21,42 +22,30 @@ class ADC
 public:
     using Operation = void (*)(adcsample_t *buffer, size_t count);
 
-    enum class Rate : int {
-        R8K = 0,
-        R16K,
-        R20K,
-        R32K,
-        R48K,
-        R96K
-    };
-    
     static void begin();
 
     static void start(adcsample_t *buffer, size_t count, Operation operation);
     static void stop();
 
-    static void setRate(Rate rate);
-    static void setOperation(Operation operation);
+    static adcsample_t readAlt(unsigned int id);
 
-    static int getRate();
-    static unsigned int getTimerDivisor();
+    static void setRate(SClock::Rate rate);
+    static void setOperation(Operation operation);
 
 private:
     static ADCDriver *m_driver;
-    static GPTDriver *m_timer;
+    static ADCDriver *m_driver2;
 
     static const ADCConfig m_config;
-    static /*const*/ ADCConversionGroup m_group_config;
-    static const GPTConfig m_timer_config;
-
-    static std::array<std::array<uint32_t, 4>, 6> m_rate_presets;
+    static const ADCConfig m_config2;
+    static ADCConversionGroup m_group_config;
+    static ADCConversionGroup m_group_config2;
 
     static adcsample_t *m_current_buffer;
     static size_t m_current_buffer_size;
     static Operation m_operation;
 
-    static unsigned int m_timer_divisor;
-
+public:
     static void conversionCallback(ADCDriver *);
 };
 

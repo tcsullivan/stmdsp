@@ -31,8 +31,16 @@ namespace stmdsp
     {
         if (m_serial.isOpen()) {
            m_serial.write("i");
-           if (m_serial.read(6) != "stmdsp")
+           if (auto id = m_serial.read(7); id.starts_with("stmdsp")) {
+                if (id.back() == 'h')
+                    m_platform = platform::H7;
+                else if (id.back() == 'l')
+                    m_platform = platform::L4;
+                else
+                    m_serial.close();
+           } else {
                m_serial.close();
+           }
         }
     }
 
@@ -120,6 +128,33 @@ namespace stmdsp
         return {};
     }
 
+    std::vector<adcsample_t> device::continuous_read_input() {
+        if (connected()) {
+            m_serial.write("t");
+            unsigned char sizebytes[2];
+            m_serial.read(sizebytes, 2);
+            unsigned int size = sizebytes[0] | (sizebytes[1] << 8);
+            if (size > 0) {
+                std::vector<adcsample_t> data (size);
+                unsigned int total = size * sizeof(adcsample_t);
+                unsigned int offset = 0;
+
+                while (total > 512) {
+                    m_serial.read(reinterpret_cast<uint8_t *>(&data[0]) + offset, 512);
+                    m_serial.write("n");
+                    offset += 512;
+                    total -= 512;
+                }
+                m_serial.read(reinterpret_cast<uint8_t *>(&data[0]) + offset, total);
+                m_serial.write("n");
+                return data;
+
+            }
+        }
+
+        return {};
+    }
+
     void device::continuous_stop() {
         if (connected())
             m_serial.write("S");
@@ -139,13 +174,17 @@ namespace stmdsp
     }
 
     void device::siggen_start() {
-        if (connected())
+        if (connected()) {
+            m_is_siggening = true;
             m_serial.write("W");
+        }
     }
 
     void device::siggen_stop() {
-        if (connected())
+        if (connected()) {
+            m_is_siggening = false;
             m_serial.write("w");
+        }
     }
 
     void device::upload_filter(unsigned char *buffer, size_t size) {

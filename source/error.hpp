@@ -27,6 +27,10 @@ public:
         return condition;
     }
 
+    bool hasError() {
+        return m_index > 0;
+    }
+
     Error pop() {
         return m_index == 0 ? Error::None : m_queue[--m_index];
     }

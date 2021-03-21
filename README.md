@@ -1,3 +1,6 @@
+**stm32h7 branch note:** This is a port of stmdsp to the NUCLEO-[H723ZG](https://www.st.com/en/microcontrollers-microprocessors/stm32h723zg.html). This new target processor provides extreme performance improvements over the L4 target, and may become the primary target in the future.  
+A minimal copy of ChibiOS is included, modified to support H723xx processors.
+
 # stmdsp
 This is the source code for an STM32-based DSP device. The primary goal of this device is to transform signals in real-time, through a GUI for writing and uploading C++ code to the device.  
 

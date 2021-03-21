@@ -3,10 +3,12 @@
 # NOTE: Can be overridden externally.
 #
 
+# Set the target platform, either L4, G4, or H7
+TARGET_PLATFORM = L4
+
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -Og -ggdb -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
-#  USE_OPT = -Os -fomit-frame-pointer -falign-functions=16 -mtune=cortex-m4
+  USE_OPT = -O0 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
 endif
 
 # C specific options here (added to USE_OPT).
@@ -16,7 +18,7 @@ endif
 
 # C++ specific options here (added to USE_OPT).
 ifeq ($(USE_CPPOPT),)
-  USE_CPPOPT = -std=c++2a -fno-rtti -fno-exceptions 
+  USE_CPPOPT = -std=c++2a -fno-rtti
 endif
 
 # Enable this if you want the linker to remove unused code and data.
@@ -26,7 +28,7 @@ endif
 
 # Linker extra options here.
 ifeq ($(USE_LDOPT),)
-  USE_LDOPT = 
+#  USE_LDOPT = -L.,-lzig
 endif
 
 # Enable this if you want link time optimizations (LTO).
@@ -56,13 +58,13 @@ endif
 # Stack size to be allocated to the Cortex-M process stack. This stack is
 # the stack used by the main() thread.
 ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 2048
+  USE_PROCESS_STACKSIZE = 1024
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 1024
+  USE_EXCEPTIONS_STACKSIZE = 2048
 endif
 
 # Enables the use of FPU (no, softfp, hard).
@@ -72,7 +74,12 @@ endif
 
 # FPU-related options.
 ifeq ($(USE_FPU_OPT),)
+ifeq ($(TARGET_PLATFORM),H7)
+  USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv5-d16
+endif
+ifeq ($(TARGET_PLATFORM),L4)
   USE_FPU_OPT = -mfloat-abi=$(USE_FPU) -mfpu=fpv4-sp-d16
+endif
 endif
 
 #
@@ -84,13 +91,17 @@ endif
 #
 
 # Define project name here
-PROJECT = stmadc
+PROJECT = ch
 
 # Target settings.
-MCU  = cortex-m4
+ifeq ($(TARGET_PLATFORM),H7)
+  MCU = cortex-m7
+else
+  MCU = cortex-m4
+endif
 
 # Imported source files and paths.
-CHIBIOS  := ChibiOS_20.3.1
+CHIBIOS  := ./ChibiOS_20.3.2
 CONFDIR  := ./cfg
 BUILDDIR := ./build
 DEPDIR   := ./.dep
@@ -98,13 +109,19 @@ DEPDIR   := ./.dep
 # Licensing files.
 include $(CHIBIOS)/os/license/license.mk
 # Startup files.
-include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
+ifeq ($(TARGET_PLATFORM),H7)
+  include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32h7xx.mk
+else
+  include $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk/startup_stm32l4xx.mk
+endif
 # HAL-OSAL files (optional).
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
-include $(CHIBIOS)/os/hal/boards/ST_STM32L476_DISCOVERY/board.mk
-#include $(CHIBIOS)/os/hal/boards/ST_NUCLEO32_L432KC/board.mk
-#include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform_l432.mk
+ifeq ($(TARGET_PLATFORM),H7)
+  include $(CHIBIOS)/os/hal/ports/STM32/STM32H7xx/platform.mk
+else
+  include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
+endif
+include ./board/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
@@ -116,9 +133,12 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 #include $(CHIBIOS)/test/rt/rt_test.mk
 #include $(CHIBIOS)/test/oslib/oslib_test.mk
 
-# Define linker script file here.
-LDSCRIPT= STM32L476xG_stmdsp.ld
-#LDSCRIPT= STM32L432xC_stmdsp.ld
+# Define linker script file here
+ifeq ($(TARGET_PLATFORM),H7)
+  LDSCRIPT = STM32H723xG.ld
+else
+  LDSCRIPT = STM32L476xG.ld
+endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -141,7 +161,7 @@ INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -pedantic
 
 # Define C++ warning options here.
-CPPWARN = -Wall -Wextra -Wundef -pedantic
+CPPWARN = -Wall -Wextra -Wundef -pedantic -Wno-volatile
 
 #
 # Project, target, sources and paths
@@ -152,7 +172,10 @@ CPPWARN = -Wall -Wextra -Wundef -pedantic
 #
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS =
+UDEFS = -DCORTEX_ENABLE_WFI_IDLE=TRUE \
+		-DPORT_USE_SYSCALL=TRUE \
+		-DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0 \
+		-DTARGET_PLATFORM_$(TARGET_PLATFORM)
 
 # Define ASM defines here
 UADEFS =
@@ -164,7 +187,11 @@ UINCDIR =
 ULIBDIR =
 
 # List all user libraries here
-ULIBS =
+ifeq ($(TARGET_PLATFORM),L4)
+  ULIBS = -lm
+else
+  ULIBS =
+endif
 
 #
 # End of user section

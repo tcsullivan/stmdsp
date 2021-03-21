@@ -19,7 +19,7 @@
 
 namespace stmdsp
 {
-    constexpr unsigned int SAMPLES_MAX = 3000;
+    constexpr unsigned int SAMPLES_MAX = 4096;
 
     class scanner
     {
@@ -39,6 +39,13 @@ namespace stmdsp
     using adcsample_t = uint16_t;
     using dacsample_t = uint16_t;
 
+    enum class platform {
+        Unknown,
+        H7,
+        L4,
+        G4
+    };
+
     class device
     {
     public:
@@ -52,8 +59,7 @@ namespace stmdsp
             return m_serial.isOpen();
         }
 
-        //std::vector<adcsample_t> sample(unsigned long int count = 1);
-
+        auto get_platform() const { return m_platform; }
         void continuous_set_buffer_size(unsigned int size);
         unsigned int get_buffer_size() const { return m_buffer_size; }
         void set_sample_rate(unsigned int id);
@@ -62,11 +68,13 @@ namespace stmdsp
         void continuous_start_measure();
         uint32_t continuous_start_get_measurement();
         std::vector<adcsample_t> continuous_read();
+        std::vector<adcsample_t> continuous_read_input();
         void continuous_stop();
 
         void siggen_upload(dacsample_t *buffer, unsigned int size);
         void siggen_start();
         void siggen_stop();
+        bool is_siggening() const { return m_is_siggening; }
 
         // buffer is ELF binary
         void upload_filter(unsigned char *buffer, size_t size);
@@ -74,7 +82,9 @@ namespace stmdsp
 
     private:
         serial::Serial m_serial;
+        platform m_platform = platform::Unknown;
         unsigned int m_buffer_size = SAMPLES_MAX;
+        bool m_is_siggening = false;
     };
 }
 
