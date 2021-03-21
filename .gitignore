@@ -1,6 +1,7 @@
-build
 **/.*
-gui/stmdspgui
 **/*.o
 **/*.so
 perf*
+build
+eagle/*#*
+gui/stmdspgui

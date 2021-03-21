@@ -102,7 +102,7 @@ endif
 
 # Imported source files and paths.
 CHIBIOS  := ./ChibiOS_20.3.2
-CONFDIR  := ./cfg
+CONFDIR  := ./source/cfg
 BUILDDIR := ./build
 DEPDIR   := ./.dep
 
@@ -121,13 +121,16 @@ ifeq ($(TARGET_PLATFORM),H7)
 else
   include $(CHIBIOS)/os/hal/ports/STM32/STM32L4xx/platform.mk
 endif
-include ./board/board.mk
+include ./source/board/board.mk
 include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 # RTOS files (optional).
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Auto-build files in ./source recursively.
-include $(CHIBIOS)/tools/mk/autobuild.mk
+#include $(CHIBIOS)/tools/mk/autobuild.mk
+ALLCSRC += $(wildcard source/*.c)
+ALLCPPSRC += $(wildcard source/*.cpp)
+ALLASMSRC += $(wildcard source/*.s)
 # Other files (optional).
 #include $(CHIBIOS)/test/lib/test.mk
 #include $(CHIBIOS)/test/rt/rt_test.mk
@@ -135,9 +138,9 @@ include $(CHIBIOS)/tools/mk/autobuild.mk
 
 # Define linker script file here
 ifeq ($(TARGET_PLATFORM),H7)
-  LDSCRIPT = STM32H723xG.ld
+  LDSCRIPT = source/ld/STM32H723xG.ld
 else
-  LDSCRIPT = STM32L476xG.ld
+  LDSCRIPT = source/ld/STM32L476xG.ld
 endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
