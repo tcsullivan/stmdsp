@@ -103,6 +103,8 @@ void MainFrame::onRunEditBSize(wxCommandEvent&)
         if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
             if (unsigned long n; value.ToULong(&n)) {
                 if (n >= 100 && n <= stmdsp::SAMPLES_MAX) {
+                    if (n & 1 == 1)
+                        ++n;
                     m_device->continuous_set_buffer_size(n);
                 } else {
                     m_status_bar->SetStatusText("Error: Invalid buffer size.");
@@ -156,6 +158,9 @@ void MainFrame::onRunGenUpload(wxCommandEvent&)
             }
 
             if (samples.size() <= stmdsp::SAMPLES_MAX * 2) {
+                // DAC buffer must be of even size
+                if (samples.size() & 1 == 1)
+                    samples.push_back(0);
                 m_device->siggen_upload(&samples[0], samples.size());
                 m_status_bar->SetStatusText("Generator ready.");
             } else {

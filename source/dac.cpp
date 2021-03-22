@@ -26,13 +26,17 @@ const DACConversionGroup DAC::m_group_config = {
     .num_channels = 1,
     .end_cb = nullptr,
     .error_cb = nullptr,
+#if defined(TARGET_PLATFORM_H7)
     .trigger = 5 // TIM6_TRGO
+#elif defined(TARGET_PLATFORM_L4)
+    .trigger = 0 // TIM6_TRGO
+#endif
 };
 
 void DAC::begin()
 {
-    palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
-    palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
+    palSetPadMode(GPIOA, 4, PAL_STM32_MODE_ANALOG);
+    palSetPadMode(GPIOA, 5, PAL_STM32_MODE_ANALOG);
 
     dacStart(m_driver[0], &m_config);
     dacStart(m_driver[1], &m_config);

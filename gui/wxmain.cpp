@@ -258,8 +258,6 @@ void MainFrame::onPaint(wxPaintEvent&)
     dc->SetBrush(*wxBLACK_BRUSH);
     dc->SetPen(*wxBLACK_PEN);
     dc->DrawRectangle(rect);
-    dc->SetBrush(*wxRED_BRUSH);
-    dc->SetPen(*wxRED_PEN);
     auto stoy = [&](stmdsp::adcsample_t s) {
         return static_cast<float>(py) + rect.GetHeight() -
             (static_cast<float>(rect.GetHeight()) * s / 4095.f);
@@ -268,15 +266,17 @@ void MainFrame::onPaint(wxPaintEvent&)
     float dx = static_cast<float>(rect.GetWidth()) / scount;
     float x = 0;
     float lasty = stoy(2048);
+    dc->SetBrush(wxBrush(wxColour(0xFF, 0, 0, 0x80)));
+    dc->SetPen(wxPen(wxColour(0xFF, 0, 0, 0x80)));
     for (decltype(scount) i = 0; i < scount; i++) {
         auto y = stoy(m_device_samples[i]);
         dc->DrawLine(x, lasty, x + dx, y);
         x += dx, lasty = y;
     }
-    dc->SetBrush(*wxBLUE_BRUSH);
-    dc->SetPen(*wxBLUE_PEN);
     x = 0;
     lasty = stoy(2048);
+    dc->SetBrush(wxBrush(wxColour(0, 0, 0xFF, 0x80)));
+    dc->SetPen(wxPen(wxColour(0, 0, 0xFF, 0x80)));
     for (decltype(scount) i = 0; i < scount; i++) {
         auto y = stoy(m_device_samples_input[i]);
         dc->DrawLine(x, lasty, x + dx, y);
