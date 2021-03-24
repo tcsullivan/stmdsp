@@ -2,7 +2,7 @@ CXX = g++-10
 CXXFLAGS = --std=c++20 -ggdb -O0 \
            -Wall -Wextra -pedantic \
            -Wno-deprecated-copy \
-           -Iserial/include \
+           -Iserial/include -IMETL/include -IMETL/dependencies/PEGTL/include \
            $(shell wx-config --cxxflags)
 
 CXXFILES = serial/src/serial.cc \

@@ -10,7 +10,6 @@
  */
 
 #include "wxmain.hpp"
-#include "wxsiggen.hpp"
 
 #include <wx/combobox.h>
 #include <wx/dcclient.h>
@@ -54,9 +53,6 @@ enum Id {
     MCodeCompile,
     MCodeDisassemble
 };
-
-#include "wxmain_mfile.h"
-#include "wxmain_mrun.h"
 
 MainFrame::MainFrame() :
     wxFrame(nullptr, wxID_ANY, "stmdspgui", wxDefaultPosition, wxSize(640, 800))

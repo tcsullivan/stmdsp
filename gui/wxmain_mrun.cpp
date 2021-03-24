@@ -1,3 +1,10 @@
+#include "wxmain.hpp"
+#include "wxmain_devdata.h"
+#include "wxsiggen.hpp"
+
+#include <wx/menuitem.h>
+#include <wx/textdlg.h>
+
 void MainFrame::onRunConnect(wxCommandEvent& ce)
 {
     auto menuItem = dynamic_cast<wxMenuItem *>(ce.GetEventUserData());
@@ -103,7 +110,7 @@ void MainFrame::onRunEditBSize(wxCommandEvent&)
         if (wxString value = dialog.GetValue(); !value.IsEmpty()) {
             if (unsigned long n; value.ToULong(&n)) {
                 if (n >= 100 && n <= stmdsp::SAMPLES_MAX) {
-                    if (n & 1 == 1)
+                    if ((n & 1) == 1)
                         ++n;
                     m_device->continuous_set_buffer_size(n);
                 } else {
@@ -159,7 +166,7 @@ void MainFrame::onRunGenUpload(wxCommandEvent&)
 
             if (samples.size() <= stmdsp::SAMPLES_MAX * 2) {
                 // DAC buffer must be of even size
-                if (samples.size() & 1 == 1)
+                if ((samples.size() & 1) == 1)
                     samples.push_back(0);
                 m_device->siggen_upload(&samples[0], samples.size());
                 m_status_bar->SetStatusText("Generator ready.");
@@ -168,24 +175,15 @@ void MainFrame::onRunGenUpload(wxCommandEvent&)
                                                              stmdsp::SAMPLES_MAX * 2));
             }
         } else {
-            // Formula
-            m_status_bar->SetStatusText("Sorry, formulas not supported yet.");
+            extern std::vector<stmdsp::dacsample_t> siggen_formula_parse(const std::string&);
+            auto samples = siggen_formula_parse(result.ToStdString());
+            if (samples.size() > 0) {
+                m_device->siggen_upload(&samples[0], samples.size());
+                m_status_bar->SetStatusText("Generator ready.");
+            } else {
+                m_status_bar->SetStatusText("Error: Bad formula.");
+            }
         }
-    //    if (wxString values = dialog.GetValue(); !values.IsEmpty()) {
-    //        if (values[0] == '/') {
-    //            m_wav_clip = new wav::clip(values.Mid(1));
-    //            if (m_wav_clip->valid()) {
-    //                m_status_bar->SetStatusText("Generator ready.");
-    //            } else {
-    //                delete m_wav_clip;
-    //                m_wav_clip = nullptr;
-    //                m_status_bar->SetStatusText("Error: Bad WAV file.");
-    //            }
-    //        } else {
-    //        }
-    //    } else {
-    //        m_status_bar->SetStatusText("Error: No samples given.");
-    //    }
     } else {
         m_status_bar->SetStatusText("Ready.");
     }

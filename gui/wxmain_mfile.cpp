@@ -1,3 +1,8 @@
+#include "wxmain.hpp"
+#include "wxmain_devdata.h"
+
+#include <wx/menu.h>
+
 void MainFrame::onFileNew(wxCommandEvent&)
 {
     m_open_file_path = "";

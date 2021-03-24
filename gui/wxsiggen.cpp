@@ -79,7 +79,9 @@ void SiggenDialog::onSourceChange(wxCommandEvent& ce)
         return;
 
     m_result.Clear();
-    if (int selection = radio->GetSelection(); selection >= 0 && selection < Sources.size()) {
+    if (unsigned int selection = static_cast<unsigned int>(radio->GetSelection());
+        selection < Sources.size())
+    {
         m_instruction->SetLabel(Instructions[selection]);
         m_source_list->Show(selection == 0);
         m_source_math->Show(selection == 1);
