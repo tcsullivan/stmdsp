@@ -11,6 +11,7 @@
 
 #include "wxsiggen.hpp"
 
+#include <array>
 #include <wx/filedlg.h>
 #include <wx/radiobox.h>
 

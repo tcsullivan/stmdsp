@@ -19,7 +19,7 @@ const std::array<unsigned int, 6> srateNums {
 
 const char *makefile_text_h7 = R"make(
 all:
-	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
+	@arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti \
                        -mcpu=cortex-m7 -mthumb -mfloat-abi=hard -mfpu=fpv5-d16 -mtune=cortex-m7 \
 	                   -nostartfiles \
 	                   -Wl,-Ttext-segment=0x00000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
@@ -34,7 +34,7 @@ all:
 )make";
 const char *makefile_text_l4 = R"make(
 all:
-	@arm-none-eabi-g++ -x c++ -Os -fno-exceptions -fno-rtti \
+	@arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti \
 	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
 	                   -nostartfiles \
 	                   -Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
@@ -48,15 +48,20 @@ all:
 	arm-none-eabi-size $0.o
 )make";
 
+// $0 = buffer size
 const char *file_header_h7 = R"cpp(
 #include <cstdint>
+#include <span>
 
-using adcsample_t = uint16_t;
-constexpr unsigned int SIZE = $0;
-adcsample_t *process_data(adcsample_t *samples, unsigned int size);
+using Sample = uint16_t;
+using Samples = std::span<Sample, $0>;
+
+Sample *process_data(Samples samples);
 extern "C" void process_data_entry()
 {
-    ((void (*)())process_data)();
+    Sample *samples;
+    asm("mov %0, r0" : "=r" (samples));
+    process_data(Samples(samples, $0));
 }
 
 constexpr double PI = 3.14159265358979323846L;
@@ -94,7 +99,7 @@ return 0;
 }
 
 auto readalt() {
-adcsample_t s;
+Sample s;
 asm("svc 3; mov %0, r0" : "=&r"(s));
 return s;
 }
@@ -104,13 +109,17 @@ return s;
 )cpp";
 const char *file_header_l4 = R"cpp(
 #include <cstdint>
+#include <span>
 
-using adcsample_t = uint16_t;
-constexpr unsigned int SIZE = $0;
-adcsample_t *process_data(adcsample_t *samples, unsigned int size);
+using Sample = uint16_t;
+using Samples = std::span<Sample, $0>;
+
+Sample *process_data(Samples samples);
 extern "C" void process_data_entry()
 {
-    ((void (*)())process_data)();
+    Sample *samples;
+    asm("mov %0, r0" : "=r" (samples));
+    process_data(Samples(samples, $0));
 }
 
 constexpr float PI = 3.14159265358979L;
@@ -148,7 +157,7 @@ return 0;
 }
 
 auto readalt() {
-adcsample_t s;
+Sample s;
 asm("push {r4-r6}; svc 3; mov %0, r0; pop {r4-r6}" : "=&r"(s));
 return s;
 }
@@ -159,9 +168,9 @@ return s;
 
 
 const char *file_content = 
-R"cpp(adcsample_t *process_data(adcsample_t *samples, unsigned int size)
+R"cpp(Sample *process_data(Samples samples)
 {
-    return samples;
+    return samples.data();
 }
 )cpp";
 
