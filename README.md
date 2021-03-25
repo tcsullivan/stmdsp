@@ -1,24 +1,15 @@
-**stm32h7 branch note:** This is a port of stmdsp to the NUCLEO-[H723ZG](https://www.st.com/en/microcontrollers-microprocessors/stm32h723zg.html). This new target processor provides extreme performance improvements over the L4 target, and may become the primary target in the future.  
-A minimal copy of ChibiOS is included, modified to support H723xx processors.
-
 # stmdsp
-This is the source code for an STM32-based DSP device. The primary goal of this device is to transform signals in real-time, through a GUI for writing and uploading C++ code to the device.  
+This is the source code for an STM32-based DSP device. The primary goal of this device is to allow custom C++ algorithms to be applied to signals in real-time.
 
 The firmware for the device is written in C++, on top of the [ChibiOS](https://www.chibios.org/dokuwiki/doku.php) real-time operating system.
 
 **Features:**
-* Read in a signal from the ADC, and either pass-through or apply a filter to the signal before outputting  it over the DAC
-* Sampling rate of 96kS/s
-* Measuring of filter code in processor clock cycles
-
-**Device features:**
-* Read +/- 5V signal(s) off of at least one pin
-* Send +/- 5V signal(s) off of at least one pin
-* Communicate with a computer program to allow for the reading, writing, and transformation of signals.
+* Read in a signal from the ADC, and either pass-through or apply a filter to the signal before outputting it over the DAC.
+* Sampling rates of up to 96kS/s.
+* Measuring of algorithm performance in processor clock cycles.
+* Flexible signal generator for providing source signals.
 
 See the wiki for more information about components of the device's software and hardware.
 
-**Directory explanation:**
 Source code for the device's firmware is in the `source` directory.  
 Source code for the accompanying GUI is in `gui`.  
-Notebook files for working with the device in Mathematica are in `mathematica`.
