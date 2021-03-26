@@ -446,18 +446,25 @@ void conversion_unprivileged_main()
 
             if (elf_entry) {
                 if (!MSG_FOR_MEASURE(message)) {
+                    // Remember the stack pointer in case the algorithm messes things up.
+                    uint32_t sp;
+                    asm("mov %0, sp" : "=r" (sp));
                     samples = elf_entry(samples, size);
+                    asm("mov sp, %0" :: "r" (sp));
                 } else {
-                    asm("eor r0, r0; svc 2"); // start measurement
+                    uint32_t sp;
+                    asm("mov %0, sp; eor r0, r0; svc 2" : "=r" (sp)); // start measurement
                     samples = elf_entry(samples, size);
-                    asm("mov r0, #1; svc 2"); // stop measurement
+                    asm("mov r0, #1; svc 2; mov sp, %0" :: "r" (sp)); // stop measurement
                 } 
             }
 
-            if (MSG_FOR_FIRST(message))
-                samplesOut.modify(samples, size); 
-            else
-                samplesOut.midmodify(samples, size); 
+            if (samples != nullptr) {
+                if (MSG_FOR_FIRST(message))
+                    samplesOut.modify(samples, size);
+                else
+                    samplesOut.midmodify(samples, size);
+            }
         }
     }
 }
@@ -509,12 +516,8 @@ void mpu_setup()
 void conversion_abort()
 {
     elf_entry = nullptr;
-    DAC::stop(0);
-    ADC::stop();
     EM.add(Error::ConversionAborted);
-
-    chMBReset(&conversionMB);
-    run_status = RunStatus::Idle;
+    run_status = RunStatus::Recovering;
 }
 
 void signal_operate(adcsample_t *buffer, size_t)
@@ -524,6 +527,7 @@ void signal_operate(adcsample_t *buffer, size_t)
     if (chMBGetUsedCountI(&conversionMB) > 1) {
         chSysUnlockFromISR();
         conversion_abort();
+        chMBReset(&conversionMB);
     } else {
         if (buffer == samplesIn.data()) {
             samplesIn.setModified();
@@ -622,16 +626,7 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
 __attribute__((naked))
 void MemManage_Handler()
 {
-    while (1);
-}
-
-__attribute__((naked))
-void HardFault_Handler()
-{
-    // Below not working (yet)
-    while (1);
-
-    // 1. Get the stack pointer
+    // 1. Get the stack pointer.
     uint32_t *stack;
     uint32_t lr;
 	asm("\
@@ -642,20 +637,35 @@ void HardFault_Handler()
         mov %1, lr; \
 	" : "=r" (stack), "=r" (lr));
 
-    // 2. Only attempt to recover from failed algorithm code
-    if ((lr & 4) == 0 || run_status != RunStatus::Running)
-        while (1);
+    // 2. Recover from the fault:
+    conversion_abort();             // Unload algorithm and indicate error.
+    stack[0] = 0;                   // Force algo. to return nullptr (DAC buffer will not update).
+    stack[6] = stack[5];            // Skip remainder of algo. code.
+    stack[7] |= (1 << 24);          // Ensure Thumb mode stays enabled.
 
-    // 3. Post the failure and unload algorithm
-    elf_entry = nullptr;
-    EM.add(Error::ConversionAborted);
-    run_status = RunStatus::Recovering;
-
-    // 4. Make this exception return to point after algorithm exec.
-    stack[6] = stack[5];
-    stack[7] |= (1 << 24); // Ensure Thumb mode stays enabled
-
+    // 3. Return.
     asm("mov lr, %0; bx lr" :: "r" (lr));
+}
+
+__attribute__((naked))
+void HardFault_Handler()
+{
+    // Get the stack pointer.
+    uint32_t *stack;
+    uint32_t lr;
+	asm("\
+		tst lr, #4; \
+		ite eq; \
+		mrseq %0, msp; \
+		mrsne %0, psp; \
+        mov %1, lr; \
+	" : "=r" (stack), "=r" (lr));
+
+    // If coming from the algorithm, attempt to recover; otherwise, give up.
+    if (run_status != RunStatus::Running && (lr & 4) != 0)
+        MemManage_Handler();
+
+    while (1);
 }
 
 } // extern "C"
