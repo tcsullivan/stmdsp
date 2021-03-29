@@ -105,7 +105,7 @@ __attribute__((section(".convcode")))
 static void conversion_unprivileged_main();
 
 static void mpu_setup();
-static void conversion_abort();
+static void abortAlgorithmFromISR();
 static void signal_operate(adcsample_t *buffer, size_t count);
 static void signal_operate_measure(adcsample_t *buffer, size_t count);
 
@@ -375,10 +375,6 @@ THD_FUNCTION(conversionThreadMonitor, arg)
 {
     (void)arg;
     while (1) {
-        // Recover from algorithm fault if necessary
-        //if (run_status == RunStatus::Recovering)
-        //    conversion_abort();
-
         msg_t message;
         if (chMBFetchTimeout(&conversionMB, &message, TIME_INFINITE) == MSG_OK)
             chMsgSend(conversionThreadHandle, message);
@@ -513,11 +509,33 @@ void mpu_setup()
 #endif
 }
 
-void conversion_abort()
+void abortAlgorithmFromISR()
 {
     elf_entry = nullptr;
     EM.add(Error::ConversionAborted);
     run_status = RunStatus::Recovering;
+
+    // Confirm that the exception return thread is the algorithm...
+    uint32_t *psp;
+	asm("mrs %0, psp" : "=r" (psp));
+    if ((uint32_t)psp >= (uint32_t)conversionThreadUPWA &&
+        (uint32_t)psp <= (uint32_t)conversionThreadUPWA + conversionThreadUPWASize)
+    {
+        // If it is, we can force the algorithm to exit by "resetting" its thread.
+        // We do this by rebuilding the thread's stacked exception return.
+        uint32_t *newpsp = reinterpret_cast<uint32_t *>(
+            (char *)conversionThreadUPWA +
+            conversionThreadUPWASize - 8 * sizeof(uint32_t));
+        // Set the LR register to the thread's entry point.
+        newpsp[5] = reinterpret_cast<uint32_t>(conversion_unprivileged_main);
+        // Overwrite the instruction we'll return to with "bx lr" (jump to address in LR).
+        newpsp[6] = psp[6];
+        *reinterpret_cast<uint16_t *>(newpsp[6]) = 0x4770; // "bx lr"
+        // Keep PSR contents (bit set forces Thumb mode, just in case).
+        newpsp[7] = psp[7] | (1 << 24);
+        // Set the new stack pointer.
+	    asm("msr psp, %0" :: "r" (newpsp));
+    }
 }
 
 void signal_operate(adcsample_t *buffer, size_t)
@@ -525,9 +543,10 @@ void signal_operate(adcsample_t *buffer, size_t)
     chSysLockFromISR();
 
     if (chMBGetUsedCountI(&conversionMB) > 1) {
+        chMBResetI(&conversionMB);
+        chMBResumeX(&conversionMB);
         chSysUnlockFromISR();
-        conversion_abort();
-        chMBReset(&conversionMB);
+        abortAlgorithmFromISR();
     } else {
         if (buffer == samplesIn.data()) {
             samplesIn.setModified();
@@ -627,21 +646,11 @@ __attribute__((naked))
 void MemManage_Handler()
 {
     // 1. Get the stack pointer.
-    uint32_t *stack;
     uint32_t lr;
-	asm("\
-		tst lr, #4; \
-		ite eq; \
-		mrseq %0, msp; \
-		mrsne %0, psp; \
-        mov %1, lr; \
-	" : "=r" (stack), "=r" (lr));
+	asm("mov %0, lr" : "=r" (lr));
 
-    // 2. Recover from the fault:
-    conversion_abort();             // Unload algorithm and indicate error.
-    stack[0] = 0;                   // Force algo. to return nullptr (DAC buffer will not update).
-    stack[6] = stack[5];            // Skip remainder of algo. code.
-    stack[7] |= (1 << 24);          // Ensure Thumb mode stays enabled.
+    // 2. Recover from the fault.
+    abortAlgorithmFromISR();
 
     // 3. Return.
     asm("mov lr, %0; bx lr" :: "r" (lr));
@@ -651,15 +660,16 @@ __attribute__((naked))
 void HardFault_Handler()
 {
     // Get the stack pointer.
-    uint32_t *stack;
+    //uint32_t *stack;
     uint32_t lr;
-	asm("\
+	asm("mov %0, lr" : "=r" (lr));
+	/*asm("\
 		tst lr, #4; \
 		ite eq; \
 		mrseq %0, msp; \
 		mrsne %0, psp; \
         mov %1, lr; \
-	" : "=r" (stack), "=r" (lr));
+	" : "=r" (stack), "=r" (lr));*/
 
     // If coming from the algorithm, attempt to recover; otherwise, give up.
     if (run_status != RunStatus::Running && (lr & 4) != 0)
