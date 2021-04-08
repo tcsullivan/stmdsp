@@ -181,19 +181,19 @@ void ADC::setRate(SClock::Rate rate)
     adcStart(m_driver, &m_config);
 #elif defined(TARGET_PLATFORM_L4)
     std::array<std::array<uint32_t, 3>, 6> m_rate_presets = {{
-        //  Rate   PLLSAI2N  R  OVERSAMPLE
-        {/* 8k  */ 16,       3, 1},
-        {/* 16k */ 32,       3, 1},
-        {/* 20k */ 40,       3, 1},
-        {/* 32k */ 64,       3, 1},
-        {/* 48k */ 24,       3, 0},
-        {/* 96k */ 48,       3, 0}
+        //  Rate   PLLSAI2N  R  SMPR
+        {/* 8k  */ 8,        1, ADC_SMPR_SMP_12P5},
+        {/* 16k */ 16,       1, ADC_SMPR_SMP_12P5},
+        {/* 20k */ 20,       1, ADC_SMPR_SMP_12P5},
+        {/* 32k */ 32,       1, ADC_SMPR_SMP_12P5},
+        {/* 48k */ 24,       0, ADC_SMPR_SMP_12P5},
+        {/* 96k */ 73,       1, ADC_SMPR_SMP_6P5}   // Technically 96.05263kS/s
     }};
 
     auto& preset = m_rate_presets[static_cast<int>(rate)];
     auto pllnr = (preset[0] << RCC_PLLSAI2CFGR_PLLSAI2N_Pos) |
                  (preset[1] << RCC_PLLSAI2CFGR_PLLSAI2R_Pos);
-    bool oversample = preset[2] != 0;
+    auto smpr = preset[2];
 
     // Adjust PLLSAI2
     RCC->CR &= ~(RCC_CR_PLLSAI2ON);
@@ -202,9 +202,11 @@ void ADC::setRate(SClock::Rate rate)
     RCC->CR |= RCC_CR_PLLSAI2ON;
     while ((RCC->CR & RCC_CR_PLLSAI2RDY) != RCC_CR_PLLSAI2RDY);
 
+    m_group_config.smpr[0] = ADC_SMPR1_SMP_AN5(smpr);
+
     // Set 2x oversampling
-    m_group_config.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
-    m_group_config2.cfgr2 = oversample ? ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1 : 0;
+    m_group_config.cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1;
+    m_group_config2.cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1;
 #endif
 }
 
