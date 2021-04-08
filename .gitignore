@@ -5,3 +5,4 @@ perf*
 build
 eagle/*#*
 gui/stmdspgui
+doc/guide.odt
