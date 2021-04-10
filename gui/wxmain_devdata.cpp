@@ -17,36 +17,39 @@ const std::array<unsigned int, 6> srateNums {
     96000
 };
 
-const char *makefile_text_h7 = R"make(
-all:
-	@arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti \
-                       -mcpu=cortex-m7 -mthumb -mfloat-abi=hard -mfpu=fpv5-d16 -mtune=cortex-m7 \
-	                   -nostartfiles \
-	                   -Wl,-Ttext-segment=0x00000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
-	                   $0 -o $0.o
-	@cp $0.o $0.orig.o
-	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
-	@arm-none-eabi-objcopy --remove-section .ARM.attributes \
-                           --remove-section .comment \
-                           --remove-section .noinit \
-                           $0.o
-	arm-none-eabi-size $0.o
-)make";
-const char *makefile_text_l4 = R"make(
-all:
-	@arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti \
-	                   -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 \
-	                   -nostartfiles \
-	                   -Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry \
-	                   $0 -o $0.o
-	@cp $0.o $0.orig.o
-	@arm-none-eabi-strip -s -S --strip-unneeded $0.o
-	@arm-none-eabi-objcopy --remove-section .ARM.attributes \
-                           --remove-section .comment \
-                           --remove-section .noinit \
-                           $0.o
-	arm-none-eabi-size $0.o
-)make";
+#ifdef WIN32
+#define NEWLINE "\r\n"
+#else
+#define NEWLINE "\n"
+#endif
+
+// $0 = temp file name
+const char *makefile_text_h7 =
+    "arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti "
+        "-mcpu=cortex-m7 -mthumb -mfloat-abi=hard -mfpu=fpv5-d16 -mtune=cortex-m7 "
+	    "-nostartfiles "
+        "-Wl,-Ttext-segment=0x00000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry "
+        "$0 -o $0.o" NEWLINE
+	"cp $0.o $0.orig.o" NEWLINE
+	"arm-none-eabi-strip -s -S --strip-unneeded $0.o" NEWLINE
+	"arm-none-eabi-objcopy --remove-section .ARM.attributes "
+                          "--remove-section .comment "
+                          "--remove-section .noinit "
+                          "$0.o" NEWLINE
+	"arm-none-eabi-size $0.o" NEWLINE;
+const char *makefile_text_l4 =
+    "arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti "
+        "-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 "
+	    "-nostartfiles "
+        "-Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry "
+        "$0 -o $0.o" NEWLINE
+	"cp $0.o $0.orig.o" NEWLINE
+	"arm-none-eabi-strip -s -S --strip-unneeded $0.o" NEWLINE
+	"arm-none-eabi-objcopy --remove-section .ARM.attributes "
+                          "--remove-section .comment "
+                          "--remove-section .noinit "
+                          "$0.o" NEWLINE
+	"arm-none-eabi-size $0.o" NEWLINE;
 
 // $0 = buffer size
 const char *file_header_h7 = R"cpp(

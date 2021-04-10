@@ -337,23 +337,23 @@ wxString MainFrame::compileEditorCode()
     file.Write(wxString(file_text) + m_text_editor->GetText());
     file.Close();
 
-    wxFile makefile (m_temp_file_name + "make", wxFile::write);
+    wxFile makefile (m_temp_file_name + ".sh", wxFile::write);
     wxString make_text (m_device->get_platform() == stmdsp::platform::L4 ? makefile_text_l4
                                                                          : makefile_text_h7);
     make_text.Replace("$0", m_temp_file_name);
     makefile.Write(make_text);
     makefile.Close();
 
-    wxString make_output = m_temp_file_name + "make.log";
-    if (wxFile::Exists(make_output))
-        wxRemoveFile(make_output);
+    wxString make_output = m_temp_file_name + ".sh.log";
+    wxString make_command = m_temp_file_name + ".sh > " + make_output + " 2>&1";
 
-    wxString make_command = wxString("make -C ") + m_temp_file_name.BeforeLast('/') +
-                            " -f " + m_temp_file_name + "make" +
-                            " > " + make_output + " 2>&1";
-
+    system(wxString("chmod +x ") + m_temp_file_name + ".sh");
     int result = system(make_command.ToAscii());
     m_compile_output->LoadFile(make_output);
+
+    wxRemoveFile(m_temp_file_name);
+    wxRemoveFile(m_temp_file_name + ".sh");
+    wxRemoveFile(make_output);
 
     if (result == 0) {
         m_status_bar->SetStatusText("Compilation succeeded.");
@@ -373,8 +373,8 @@ void MainFrame::onToolbarSampleRate(wxCommandEvent& ce)
 
 void MainFrame::onCodeDisassemble(wxCommandEvent&)
 {
+    auto output = m_temp_file_name + ".asm.log";
     if (!m_temp_file_name.IsEmpty()) {
-        auto output = m_temp_file_name + ".asm.log";
         wxString command = wxString("arm-none-eabi-objdump -d --no-show-raw-insn ") +
                                     m_temp_file_name + ".orig.o" // +
                                     " > " + output + " 2>&1";
@@ -391,6 +391,8 @@ void MainFrame::onCodeDisassemble(wxCommandEvent&)
         m_compile_output->ChangeValue("");
         m_status_bar->SetStatusText("Need to compile code before analyzing.");
     }
+
+    wxRemoveFile(output);
 }
 
 wxMenu *MainFrame::loadTemplates()
