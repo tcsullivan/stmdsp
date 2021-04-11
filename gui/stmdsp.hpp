@@ -24,7 +24,12 @@ namespace stmdsp
     class scanner
     {
     private:
-        constexpr static const char *STMDSP_USB_ID = "USB VID:PID=0483:5740";
+        constexpr static const char *STMDSP_USB_ID =
+#ifndef STMDSP_WIN32
+            "USB VID:PID=0483:5740";
+#else
+            "USB\\VID_0483&PID_5740";
+#endif
 
     public:
         std::list<std::string>& scan();

@@ -6,3 +6,5 @@ build
 eagle/*#*
 gui/stmdspgui
 doc/guide.odt
+*.exe
+*.dll

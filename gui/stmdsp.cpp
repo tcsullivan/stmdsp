@@ -30,6 +30,7 @@ namespace stmdsp
         m_serial(file, 1000000/*230400*/, serial::Timeout::simpleTimeout(50))
     {
         if (m_serial.isOpen()) {
+		   m_serial.flush();
            m_serial.write("i");
            if (auto id = m_serial.read(7); id.starts_with("stmdsp")) {
                 if (id.back() == 'h')
