@@ -50,11 +50,9 @@ static msg_t conversionMBBuffer[2];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
 
 // Thread for LED status and wakeup hold
-#if defined(TARGET_PLATFORM_H7)
 __attribute__((section(".stacks")))
-static THD_WORKING_AREA(monitorThreadWA, 1024);
+static THD_WORKING_AREA(monitorThreadWA, 256);
 static THD_FUNCTION(monitorThread, arg);
-#endif
 
 // Thread for managing the conversion task
 __attribute__((section(".stacks")))
@@ -109,6 +107,12 @@ static void abortAlgorithmFromISR();
 static void signal_operate(adcsample_t *buffer, size_t count);
 static void signal_operate_measure(adcsample_t *buffer, size_t count);
 
+#if defined(TARGET_PLATFORM_L4)
+constexpr auto LINE_LED_GREEN = PAL_LINE(GPIOC_BASE, 10U);
+constexpr auto LINE_LED_YELLOW = PAL_LINE(GPIOC_BASE, 11U);
+constexpr auto LINE_LED_RED = PAL_LINE(GPIOC_BASE, 12U);
+#endif
+
 int main()
 {
     // Initialize the RTOS
@@ -118,7 +122,12 @@ int main()
     SCB->CPACR |= 0xF << 20; // Enable FPU
     mpu_setup();
 
-    palSetLineMode(LINE_BUTTON, PAL_MODE_INPUT);
+#if defined(TARGET_PLATFORM_L4)
+    palSetLineMode(LINE_LED_GREEN, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetLineMode(LINE_LED_YELLOW, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetLineMode(LINE_LED_RED, PAL_MODE_OUTPUT_PUSHPULL);
+#endif
+
     ADC::begin();
     DAC::begin();
     SClock::begin();
@@ -129,12 +138,10 @@ int main()
     ADC::setRate(SClock::Rate::R32K);
 
     chTMObjectInit(&conversion_time_measurement);
-#if defined(TARGET_PLATFORM_H7)
     chThdCreateStatic(
         monitorThreadWA, sizeof(monitorThreadWA),
         LOWPRIO,
         monitorThread, nullptr);
-#endif
     conversionThreadMonitorHandle = chThdCreateStatic(
         conversionThreadMonitorWA, sizeof(conversionThreadMonitorWA),
         NORMALPRIO + 1,
@@ -388,12 +395,21 @@ THD_FUNCTION(conversionThread, stack)
                            reinterpret_cast<uint32_t>(stack));
 }
 
-#if defined(TARGET_PLATFORM_H7)
 THD_FUNCTION(monitorThread, arg)
 {
     (void)arg;
 
     palSetLineMode(LINE_BUTTON, PAL_MODE_INPUT_PULLUP);
+    auto readButton = [] {
+#if defined(TARGET_PLATFORM_L4)
+            return !palReadLine(LINE_BUTTON);
+#else
+            return palReadLine(LINE_BUTTON);
+#endif
+        };
+
+    palClearLine(LINE_LED_RED);
+    palClearLine(LINE_LED_YELLOW);
 
     while (1) {
         bool isidle = run_status == RunStatus::Idle;
@@ -405,13 +421,13 @@ THD_FUNCTION(monitorThread, arg)
         palClearLine(led);
         chThdSleepMilliseconds(delay);
 
-        if (run_status == RunStatus::Idle && palReadLine(LINE_BUTTON)) {
+        if (run_status == RunStatus::Idle && readButton()) {
             palSetLine(LINE_LED_RED);
             palSetLine(LINE_LED_YELLOW);
             chSysLock();
-            while (palReadLine(LINE_BUTTON))
+            while (readButton())
                 asm("nop");
-            while (!palReadLine(LINE_BUTTON))
+            while (!readButton())
                 asm("nop");
             chSysUnlock();
             palClearLine(LINE_LED_RED);
@@ -429,7 +445,6 @@ THD_FUNCTION(monitorThread, arg)
         }
     }
 }
-#endif
 
 void conversion_unprivileged_main()
 {
