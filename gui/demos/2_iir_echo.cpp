@@ -1,10 +1,12 @@
-adcsample_t *process_data(adcsample_t *samples, unsigned int size)
+Sample *process_data(Samples samples)
 {
-	constexpr float alpha = 0.7;
+	constexpr unsigned int size = samples.size();
 	constexpr unsigned int D = 2000;
 
-	static adcsample_t output[SIZE];
-	static adcsample_t prev[D]; // prev[0] = output[0 - D]
+	float alpha = readalt() / 4095.;
+
+	static Sample output[size];
+	static Sample prev[D]; // prev[0] = output[0 - D]
 
 	// Do calculations with previous output
 	for (unsigned int i = 0; i < D; i++)

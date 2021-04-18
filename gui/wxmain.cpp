@@ -88,7 +88,7 @@ MainFrame::MainFrame() :
                                       wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL | wxTE_RICH2);
     m_measure_timer  = new wxTimer(this, Id::MeasureTimer);
     m_menu_bar       = new wxMenuBar;
-    m_rate_select    = new wxComboBox(panelToolbar, wxID_ANY,
+    m_rate_select    = new wxComboBox(this, wxID_ANY,
                                       wxEmptyString,
                                       wxDefaultPosition, wxDefaultSize,
                                       srateValues.size(), srateValues.data(),
@@ -111,14 +111,14 @@ MainFrame::MainFrame() :
     SetMenuBar(m_menu_bar);
 
     // Toolbar initialization
-    auto comp = new wxButton(this, wxID_ANY, "Compile", {10, 10});
-    sizerToolbar->Add(comp, 0, wxLEFT, 4);
-    sizerToolbar->Add(m_rate_select, 0, wxLEFT, 12);
+    auto comp = new wxButton(this, wxID_ANY, "Compile");
+    sizerToolbar->Add(comp, 0, wxLEFT | wxTOP, 4);
+    sizerToolbar->Add(m_rate_select, 0, wxLEFT | wxTOP, 4);
     panelToolbar->SetSizer(sizerToolbar);
 
     // Code panel init.
     prepareEditor();
-    sizerCode->Add(panelToolbar, 0, wxTOP | wxBOTTOM, 4);
+    sizerCode->Add(panelToolbar, 0, wxBOTTOM, 4);
     sizerCode->Add(m_text_editor, 1, wxEXPAND, 0);
     panelCode->SetSizer(sizerCode);
 
@@ -446,11 +446,16 @@ void MainFrame::updateMenuOptions()
 {
     bool connected = m_device != nullptr;
     m_menu_bar->Enable(MRunStart, connected);
-    m_menu_bar->Enable(MRunUpload, connected);
-    m_menu_bar->Enable(MRunUnload, connected);
-    m_menu_bar->Enable(MRunEditBSize, connected);
     m_menu_bar->Enable(MRunGenUpload, connected);
     m_menu_bar->Enable(MRunGenStart, connected);
-    m_rate_select->Enable(connected);
+
+    bool nrunning = connected && !m_is_running;
+    m_menu_bar->Enable(MRunUpload, nrunning);
+    m_menu_bar->Enable(MRunUnload, nrunning);
+    m_menu_bar->Enable(MRunEditBSize, nrunning);
+    m_menu_bar->Enable(MRunMeasure, nrunning);
+    m_menu_bar->Enable(MRunDrawSamples, nrunning);
+    m_menu_bar->Enable(MRunLogResults, nrunning);
+    m_rate_select->Enable(nrunning);
 }
 

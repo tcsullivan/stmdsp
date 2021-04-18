@@ -10,13 +10,12 @@ CXX = g++-10
 CXXFLAGS = --std=c++20 -ggdb -O0 \
            -Wall -Wextra -pedantic \
            -Wno-deprecated-copy \
-           -Iserial/include -IMETL/include -IMETL/dependencies/PEGTL/include \
-		   -Wa,-mbig-obj
+           -Iserial/include -IMETL/include -IMETL/dependencies/PEGTL/include
 
 ifeq ($(UNAME), Linux)
 CXXFLAGS += $(shell wx-config --cxxflags)
 else
-CXXFLAGS += -IC:\wx\include -DSTMDSP_WIN32
+CXXFLAGS += -IC:\wx\include -DSTMDSP_WIN32 -Wa,-mbig-obj
 endif
 
 ifeq ($(UNAME), Linux)

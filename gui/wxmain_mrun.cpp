@@ -76,6 +76,8 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
         if (m_run_draw_samples->IsChecked())
             m_compile_output->Refresh();
     }
+
+    updateMenuOptions();
 }
 
 void MainFrame::onRunLogResults(wxCommandEvent& ce)
