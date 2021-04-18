@@ -55,7 +55,8 @@ enum Id {
     MRunGenUpload,
     MRunGenStart,
     MCodeCompile,
-    MCodeDisassemble
+    MCodeDisassemble,
+	CompileOutput
 };
 
 MainFrame::MainFrame() :
@@ -67,7 +68,7 @@ MainFrame::MainFrame() :
     auto panelCode    = new wxPanel(mainSplitter, wxID_ANY);
     auto panelOutput  = new wxPanel(mainSplitter, wxID_ANY);
     // Additional panel for the toolbar
-    auto panelToolbar = new wxPanel(this, wxID_ANY);
+    auto panelToolbar = new wxPanel(panelCode, wxID_ANY);
     // Sizers for the controls
     auto sizerToolbar = new wxBoxSizer(wxHORIZONTAL);
     auto sizerCode    = new wxBoxSizer(wxVERTICAL);
@@ -82,13 +83,13 @@ MainFrame::MainFrame() :
     m_status_bar     = new wxStatusBar(this);
     m_text_editor    = new wxStyledTextCtrl(panelCode, wxID_ANY,
                                             wxDefaultPosition, wxSize(620, 440));
-    m_compile_output = new wxTextCtrl(panelOutput, wxID_ANY,
+    m_compile_output = new wxTextCtrl(panelOutput, Id::CompileOutput,
                                       wxEmptyString,
                                       wxDefaultPosition, wxSize(620, 250),
                                       wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL | wxTE_RICH2);
     m_measure_timer  = new wxTimer(this, Id::MeasureTimer);
     m_menu_bar       = new wxMenuBar;
-    m_rate_select    = new wxComboBox(this, wxID_ANY,
+    m_rate_select    = new wxComboBox(panelToolbar, wxID_ANY,
                                       wxEmptyString,
                                       wxDefaultPosition, wxDefaultSize,
                                       srateValues.size(), srateValues.data(),
@@ -111,7 +112,7 @@ MainFrame::MainFrame() :
     SetMenuBar(m_menu_bar);
 
     // Toolbar initialization
-    auto comp = new wxButton(this, wxID_ANY, "Compile");
+    auto comp = new wxButton(panelToolbar, wxID_ANY, "Compile");
     sizerToolbar->Add(comp, 0, wxLEFT | wxTOP, 4);
     sizerToolbar->Add(m_rate_select, 0, wxLEFT | wxTOP, 4);
     panelToolbar->SetSizer(sizerToolbar);
@@ -144,7 +145,8 @@ MainFrame::MainFrame() :
     // General
     Bind(wxEVT_TIMER,        &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,   this, wxID_ANY);
-    Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, wxID_ANY);
+  m_compile_output->
+	Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, Id::CompileOutput);
 
     // Toolbar actions
     Bind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, wxID_ANY, wxID_ANY, comp);
@@ -179,7 +181,6 @@ MainFrame::MainFrame() :
     Bind(wxEVT_MENU, &MainFrame::onCodeDisassemble, this, Id::MCodeDisassemble, wxID_ANY, menuCode->Append(MCodeDisassemble, "Show &Disassembly"));
 
     updateMenuOptions();
-	comp->Raise();
 }
 
 // Closes the window
@@ -219,7 +220,7 @@ void MainFrame::onMeasureTimer(wxTimerEvent&)
             if (m_run_draw_samples->IsChecked()) {
                 samples = m_device->continuous_read_input();
                 std::copy(samples.cbegin(), samples.cend(), m_device_samples_input);
-                this->Refresh();
+                m_compile_output->Refresh();
             }
         }
     }
@@ -244,50 +245,42 @@ void MainFrame::onMeasureTimer(wxTimerEvent&)
 
 void MainFrame::onPaint(wxPaintEvent&)
 {
-    if (!m_is_running || !m_run_draw_samples->IsChecked()) {
-        if (!m_compile_output->IsShown())
-            m_compile_output->Show();
+    if (!m_is_running || !m_run_draw_samples->IsChecked())
         return;
-    } else if (m_compile_output->IsShown()) {
-        m_compile_output->Hide();
-    }
 
-    auto py = m_compile_output->GetScreenPosition().y - this->GetScreenPosition().y - 28;
+	const auto& dim = m_compile_output->GetSize();
     wxRect rect {
-        0, py,
-        this->GetSize().GetWidth(),
-        this->GetSize().GetHeight() - py - 60
+	    0, 0, dim.GetWidth(), dim.GetHeight()
     };
 
-    auto *dc = new wxBufferedPaintDC(this);
-    dc->SetBrush(*wxBLACK_BRUSH);
-    dc->SetPen(*wxBLACK_PEN);
-    dc->DrawRectangle(rect);
+    wxBufferedPaintDC dc (m_compile_output);
+    dc.SetBrush(*wxBLACK_BRUSH);
+    dc.SetPen(*wxBLACK_PEN);
+    dc.DrawRectangle(rect);
     auto stoy = [&](stmdsp::adcsample_t s) {
-        return static_cast<float>(py) + rect.GetHeight() -
+        return static_cast<float>(rect.GetHeight()) -
             (static_cast<float>(rect.GetHeight()) * s / 4095.f);
     };
     auto scount = m_device->get_buffer_size();
     float dx = static_cast<float>(rect.GetWidth()) / scount;
     float x = 0;
     float lasty = stoy(2048);
-    dc->SetBrush(wxBrush(wxColour(0xFF, 0, 0, 0x80)));
-    dc->SetPen(wxPen(wxColour(0xFF, 0, 0, 0x80)));
+    dc.SetBrush(wxBrush(wxColour(0xFF, 0, 0, 0x80)));
+    dc.SetPen(wxPen(wxColour(0xFF, 0, 0, 0x80)));
     for (decltype(scount) i = 0; i < scount; i++) {
         auto y = stoy(m_device_samples[i]);
-        dc->DrawLine(x, lasty, x + dx, y);
+        dc.DrawLine(x, lasty, x + dx, y);
         x += dx, lasty = y;
     }
     x = 0;
     lasty = stoy(2048);
-    dc->SetBrush(wxBrush(wxColour(0, 0, 0xFF, 0x80)));
-    dc->SetPen(wxPen(wxColour(0, 0, 0xFF, 0x80)));
+    dc.SetBrush(wxBrush(wxColour(0, 0, 0xFF, 0x80)));
+    dc.SetPen(wxPen(wxColour(0, 0, 0xFF, 0x80)));
     for (decltype(scount) i = 0; i < scount; i++) {
         auto y = stoy(m_device_samples_input[i]);
-        dc->DrawLine(x, lasty, x + dx, y);
+        dc.DrawLine(x, lasty, x + dx, y);
         x += dx, lasty = y;
     }
-    delete dc;
 }
 
 void MainFrame::prepareEditor()
