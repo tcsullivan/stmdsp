@@ -99,6 +99,9 @@ static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 __attribute__((section(".convdata")))
 static ELF::Entry elf_entry = nullptr;
 
+static char userMessageBuffer[128];
+static unsigned char userMessageSize = 0;
+
 __attribute__((section(".convcode")))
 static void conversion_unprivileged_main();
 
@@ -187,6 +190,7 @@ THD_FUNCTION(communicationThread, arg)
                 // 'S' - Stop conversion.
                 // 's' - Get latest block of conversion results.
                 // 't' - Get latest block of conversion input.
+		// 'u' - Get user message.
                 // 'W' - Start signal generator (siggen).
                 // 'w' - Stop siggen.
 
@@ -359,6 +363,10 @@ THD_FUNCTION(communicationThread, arg)
                     } else {
                         USBSerial::write(reinterpret_cast<const uint8_t *>("\0\0"), 2);
                     }
+                    break;
+
+                case 'u':
+                    USBSerial::write(reinterpret_cast<uint8_t *>(userMessageBuffer), userMessageSize);
                     break;
 
                 case 'W':
@@ -647,6 +655,17 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
         break;
     case 3:
         ctxp->r0 = ADC::readAlt(0);
+        break;
+    case 4:
+        {
+            const char *str = reinterpret_cast<const char *>(ctxp->r0);
+            auto src = str;
+            auto dst = userMessageBuffer;
+            while (*src)
+                *dst++ = *src++;
+            *dst = '\0';
+            userMessageSize = src - str;
+        }
         break;
     default:
         while (1);

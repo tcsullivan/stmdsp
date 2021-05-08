@@ -29,14 +29,17 @@
 #include <array>
 #include <vector>
 
-#ifndef WIN32
+#ifndef STMDSP_WIN32
 #include <sys/mman.h>
+#include <unistd.h>
 #endif
 
 #include "wxmain_devdata.h"
 
 enum Id {
-    MeasureTimer = 1,
+    TimerPerformance = 1,
+    TimerRecord,
+    TimerWavClip,
 
     MFileNew,
     MFileOpen,
@@ -56,7 +59,7 @@ enum Id {
     MRunGenStart,
     MCodeCompile,
     MCodeDisassemble,
-	CompileOutput
+    CompileOutput
 };
 
 MainFrame::MainFrame() :
@@ -87,14 +90,16 @@ MainFrame::MainFrame() :
                                       wxEmptyString,
                                       wxDefaultPosition, wxSize(620, 250),
                                       wxTE_READONLY | wxTE_MULTILINE | wxHSCROLL | wxTE_RICH2);
-    m_measure_timer  = new wxTimer(this, Id::MeasureTimer);
+    m_timer_performance = new wxTimer(this, Id::TimerPerformance);
+    m_timer_record = new wxTimer(this, Id::TimerRecord);
+    m_timer_wavclip = new wxTimer(this, Id::TimerWavClip);
     m_menu_bar       = new wxMenuBar;
     m_rate_select    = new wxComboBox(panelToolbar, wxID_ANY,
                                       wxEmptyString,
                                       wxDefaultPosition, wxDefaultSize,
                                       srateValues.size(), srateValues.data(),
                                       wxCB_READONLY);
-#ifndef WIN32
+#ifndef STMDSP_WIN32
     m_device_samples = reinterpret_cast<stmdsp::adcsample_t *>(::mmap(
         nullptr, stmdsp::SAMPLES_MAX * sizeof(stmdsp::adcsample_t),
         PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
@@ -102,8 +107,8 @@ MainFrame::MainFrame() :
         nullptr, stmdsp::SAMPLES_MAX * sizeof(stmdsp::adcsample_t),
         PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
 #else
-	m_device_samples = new stmdsp::adcsample_t[stmdsp::SAMPLES_MAX];
-	m_device_samples_input = new stmdsp::adcsample_t[stmdsp::SAMPLES_MAX];
+    m_device_samples = new stmdsp::adcsample_t[stmdsp::SAMPLES_MAX];
+    m_device_samples_input = new stmdsp::adcsample_t[stmdsp::SAMPLES_MAX];
 #endif
 
     m_menu_bar->Append(menuFile, "&File");
@@ -143,10 +148,12 @@ MainFrame::MainFrame() :
     // Binds:
 
     // General
-    Bind(wxEVT_TIMER,        &MainFrame::onMeasureTimer, this, Id::MeasureTimer);
-    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,   this, wxID_ANY);
+    Bind(wxEVT_TIMER,        &MainFrame::onTimerPerformance, this, Id::TimerPerformance);
+    Bind(wxEVT_TIMER,        &MainFrame::onTimerRecord,      this, Id::TimerRecord);
+    Bind(wxEVT_TIMER,        &MainFrame::onTimerWavClip,     this, Id::TimerWavClip);
+    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,       this, wxID_ANY);
   m_compile_output->
-	Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, Id::CompileOutput);
+    Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, Id::CompileOutput);
 
     // Toolbar actions
     Bind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, wxID_ANY, wxID_ANY, comp);
@@ -192,7 +199,9 @@ void MainFrame::onCloseEvent(wxCloseEvent& event)
     //delete m_menu_bar->Remove(1);
     //delete m_menu_bar->Remove(0);
     //delete m_menu_bar;
-    delete m_measure_timer;
+    delete m_timer_performance;
+    delete m_timer_record;
+    delete m_timer_wavclip;
     delete m_device;
 
     Unbind(wxEVT_COMBOBOX, &MainFrame::onToolbarSampleRate, this, wxID_ANY, wxID_ANY);
@@ -201,46 +210,45 @@ void MainFrame::onCloseEvent(wxCloseEvent& event)
     event.Skip();
 }
 
-// Measure timer tick handler
-// Only called while connected and running.
-void MainFrame::onMeasureTimer(wxTimerEvent&)
+void MainFrame::onTimerPerformance(wxTimerEvent&)
 {
-    if (m_conv_result_log || m_run_draw_samples->IsChecked()) {
-        auto samples = m_device->continuous_read();
-        if (samples.size() > 0) {
-            std::copy(samples.cbegin(), samples.cend(), m_device_samples);
+    // Show execution time
+    m_status_bar->SetStatusText(wxString::Format(wxT("Execution time: %u cycles"),
+                                                 m_device->continuous_start_get_measurement()));
+}
 
-            if (m_conv_result_log) {
-                for (auto& s : samples) {
-                    auto str = std::to_string(s) + ',';
-                    m_conv_result_log->Write(str.c_str(), str.size());
-                }
-				m_conv_result_log->Write("\n", 1);
+void MainFrame::onTimerRecord(wxTimerEvent&)
+{
+    auto samples = m_device->continuous_read();
+    if (samples.size() > 0) {
+        std::copy(samples.cbegin(), samples.cend(), m_device_samples);
+
+        if (m_conv_result_log) {
+            for (auto& s : samples) {
+                auto str = std::to_string(s) + ',';
+                m_conv_result_log->Write(str.c_str(), str.size());
             }
-            if (m_run_draw_samples->IsChecked()) {
-                samples = m_device->continuous_read_input();
-                std::copy(samples.cbegin(), samples.cend(), m_device_samples_input);
-                m_compile_output->Refresh();
-            }
+                m_conv_result_log->Write("\n", 1);
+        }
+
+        if (m_run_draw_samples->IsChecked()) {
+            samples = m_device->continuous_read_input();
+            std::copy(samples.cbegin(), samples.cend(), m_device_samples_input);
+            m_compile_output->Refresh();
         }
     }
+}
 
-    if (m_wav_clip) {
-        // Stream out next WAV chunk
-        auto size = m_device->get_buffer_size();
-        auto chunk = new stmdsp::adcsample_t[size];
-        auto src = reinterpret_cast<uint16_t *>(m_wav_clip->next(size));
-        for (unsigned int i = 0; i < size; i++)
-            chunk[i] = ((uint32_t)*src++) / 16 + 2048;
-        m_device->siggen_upload(chunk, size);
-        delete[] chunk;
-    }
-
-    if (m_run_measure->IsChecked()) {
-        // Show execution time
-        m_status_bar->SetStatusText(wxString::Format(wxT("Execution time: %u cycles"),
-                                                     m_device->continuous_start_get_measurement()));
-    }
+void MainFrame::onTimerWavClip(wxTimerEvent&)
+{
+    // Stream out next WAV chunk
+    auto size = m_device->get_buffer_size();
+    auto chunk = new stmdsp::adcsample_t[size];
+    auto src = reinterpret_cast<uint16_t *>(m_wav_clip->next(size));
+    for (unsigned int i = 0; i < size; i++)
+        chunk[i] = ((uint32_t)*src++) / 16 + 2048;
+    m_device->siggen_upload(chunk, size);
+    delete[] chunk;
 }
 
 void MainFrame::onPaint(wxPaintEvent&)
@@ -248,9 +256,9 @@ void MainFrame::onPaint(wxPaintEvent&)
     if (!m_is_running || !m_run_draw_samples->IsChecked())
         return;
 
-	const auto& dim = m_compile_output->GetSize();
+    const auto& dim = m_compile_output->GetSize();
     wxRect rect {
-	    0, 0, dim.GetWidth(), dim.GetHeight()
+        0, 0, dim.GetWidth(), dim.GetHeight()
     };
 
     wxBufferedPaintDC dc (m_compile_output);
@@ -323,10 +331,10 @@ void MainFrame::prepareEditor()
 
 wxString MainFrame::compileEditorCode()
 {
-	stmdsp::platform platform;
+    stmdsp::platform platform;
     if (m_device != nullptr) {
-		platform = m_device->get_platform();
-	} else {
+        platform = m_device->get_platform();
+    } else {
         m_status_bar->SetStatusText("Assuming L4 platform...");
         platform = stmdsp::platform::L4;
     }
@@ -342,17 +350,19 @@ wxString MainFrame::compileEditorCode()
     file.Write(wxString(file_text) + m_text_editor->GetText());
     file.Close();
 
-	constexpr const char *script_ext =
+    constexpr const char *script_ext =
 #ifndef STMDSP_WIN32
-		".sh";
+        ".sh";
 #else
-		".bat";
+        ".bat";
 #endif
 
     wxFile makefile (m_temp_file_name + script_ext, wxFile::write);
     wxString make_text (platform == stmdsp::platform::L4 ? makefile_text_l4
                                                          : makefile_text_h7);
     make_text.Replace("$0", m_temp_file_name);
+    char cwd[PATH_MAX];
+    make_text.Replace("$1", getcwd(cwd, sizeof(cwd)));
     makefile.Write(make_text);
     makefile.Close();
 
@@ -363,12 +373,12 @@ wxString MainFrame::compileEditorCode()
 #ifndef STMDSP_WIN32
     system(wxString("chmod +x ") + m_temp_file_name + script_ext);
 #endif
-	int result = system(make_command.ToAscii());
-	wxFile result_file (make_output);
-	wxString result_text;
-	result_file.ReadAll(&result_text);
-	result_file.Close();
-	m_compile_output->Clear();
+    int result = system(make_command.ToAscii());
+    wxFile result_file (make_output);
+    wxString result_text;
+    result_file.ReadAll(&result_text);
+    result_file.Close();
+    m_compile_output->Clear();
     m_compile_output->WriteText(result_text);
 
     wxRemoveFile(m_temp_file_name);
@@ -401,12 +411,12 @@ void MainFrame::onCodeDisassemble(wxCommandEvent&)
     
         if (system(command.ToAscii()) == 0) {
             wxFile result_file (output);
-			wxString result_text;
-			result_file.ReadAll(&result_text);
-			result_file.Close();
-			m_compile_output->Clear();
-			m_compile_output->WriteText(result_text);
-			wxRemoveFile(output);
+            wxString result_text;
+            result_file.ReadAll(&result_text);
+            result_file.Close();
+            m_compile_output->Clear();
+            m_compile_output->WriteText(result_text);
+            wxRemoveFile(output);
             m_status_bar->SetStatusText(wxString::Format(wxT("Done. Line count: %u."),
                                                              m_compile_output->GetNumberOfLines()));
         } else {

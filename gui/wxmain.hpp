@@ -59,7 +59,9 @@ public:
     void onCodeDisassemble(wxCommandEvent&);
 
     void onPaint(wxPaintEvent&);
-    void onMeasureTimer(wxTimerEvent&);
+    void onTimerPerformance(wxTimerEvent&);
+    void onTimerRecord(wxTimerEvent&);
+    void onTimerWavClip(wxTimerEvent&);
 
 private:
     // Set to true if connected and running
@@ -71,7 +73,9 @@ private:
     wxControl *m_signal_area = nullptr;
     wxMenuItem *m_run_measure = nullptr;
     wxMenuItem *m_run_draw_samples = nullptr;
-    wxTimer *m_measure_timer = nullptr;
+    wxTimer *m_timer_performance = nullptr;
+    wxTimer *m_timer_record = nullptr;
+    wxTimer *m_timer_wavclip = nullptr;
     wxStatusBar *m_status_bar = nullptr;
     wxMenuBar *m_menu_bar = nullptr;
     wxComboBox *m_rate_select = nullptr;

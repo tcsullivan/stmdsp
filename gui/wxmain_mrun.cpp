@@ -46,15 +46,19 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
     if (!m_is_running) {
         if (m_run_measure->IsChecked()) {
             m_device->continuous_start_measure();
-            m_measure_timer->StartOnce(1000);
+            m_timer_performance->StartOnce(1000);
         } else {
             if (m_device->is_siggening() && m_wav_clip) {
-                m_measure_timer->Start(m_device->get_buffer_size() * 500 / 
+                // TODO Confirm need for factor of 500
+                m_timer_wavclip->Start(m_device->get_buffer_size() * 500 /
                                        srateNums[m_rate_select->GetSelection()]);
             } else if (m_conv_result_log) {
-                m_measure_timer->Start(15);
+                m_timer_record->Start(m_device->get_buffer_size() /
+                      srateNums[m_rate_select->GetSelection()] *
+                      800 / 1000);
             } else if (m_run_draw_samples->IsChecked()) {
-                m_measure_timer->Start(300);
+                m_timer_record->Start(m_device->get_buffer_size() /
+                      srateNums[m_rate_select->GetSelection()]);
             }
 
             m_device->continuous_start();
@@ -66,7 +70,9 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
         m_is_running = true;
     } else {
         m_device->continuous_stop();
-        m_measure_timer->Stop();
+        m_timer_performance->Stop();
+        m_timer_record->Stop();
+        m_timer_wavclip->Stop();
 
         m_rate_select->Enable(true);
         menuItem->SetItemLabel("&Start");
