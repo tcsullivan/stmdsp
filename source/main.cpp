@@ -2,7 +2,7 @@
  * @file main.cpp
  * @brief Program entry point.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
@@ -26,8 +26,16 @@ static_assert(sizeof(dacsample_t) == sizeof(uint16_t));
 
 #include <array>
 
-constexpr unsigned int MAX_ELF_FILE_SIZE = 16 * 1024;
+// Pin definitions
+//
+#if defined(TARGET_PLATFORM_L4)
+constexpr auto LINE_LED_GREEN = PAL_LINE(GPIOC_BASE, 10U);
+constexpr auto LINE_LED_YELLOW = PAL_LINE(GPIOC_BASE, 11U);
+constexpr auto LINE_LED_RED = PAL_LINE(GPIOC_BASE, 12U);
+#endif
 
+// Run status
+//
 enum class RunStatus : char
 {
     Idle = '1',
@@ -36,6 +44,8 @@ enum class RunStatus : char
 };
 static RunStatus run_status = RunStatus::Idle;
 
+// Conversion threads messaging
+//
 #define MSG_CONVFIRST          (1)
 #define MSG_CONVSECOND         (2)
 #define MSG_CONVFIRST_MEASURE  (3)
@@ -44,43 +54,11 @@ static RunStatus run_status = RunStatus::Idle;
 #define MSG_FOR_FIRST(m)   (m & 1)
 #define MSG_FOR_MEASURE(m) (m > 2)
 
-static ErrorManager EM;
-
 static msg_t conversionMBBuffer[2];
 static MAILBOX_DECL(conversionMB, conversionMBBuffer, 2);
 
-// Thread for LED status and wakeup hold
-__attribute__((section(".stacks")))
-static THD_WORKING_AREA(monitorThreadWA, 256);
-static THD_FUNCTION(monitorThread, arg);
-
-// Thread for managing the conversion task
-__attribute__((section(".stacks")))
-static THD_WORKING_AREA(conversionThreadMonitorWA, 1024);
-static THD_FUNCTION(conversionThreadMonitor, arg);
-static thread_t *conversionThreadHandle = nullptr;
-
-// Thread for unprivileged algorithm execution
-__attribute__((section(".stacks")))
-static THD_WORKING_AREA(conversionThreadWA, 128); // All we do is enter unprivileged mode.
-static THD_FUNCTION(conversionThread, arg);
-constexpr unsigned int conversionThreadUPWASize = 
-#if defined(TARGET_PLATFORM_H7)
-                                                  62 * 1024;
-#else
-                                                  15 * 1024;
-#endif
-__attribute__((section(".convdata")))
-static THD_WORKING_AREA(conversionThreadUPWA, conversionThreadUPWASize);
-__attribute__((section(".convdata")))
-static thread_t *conversionThreadMonitorHandle = nullptr;
-
-// Thread for USB monitoring
-__attribute__((section(".stacks")))
-static THD_WORKING_AREA(communicationThreadWA, 4096);
-static THD_FUNCTION(communicationThread, arg);
-
-static time_measurement_t conversion_time_measurement;
+// Sample input and output buffers
+//
 #if defined(TARGET_PLATFORM_H7)
 __attribute__((section(".convdata")))
 static SampleBuffer samplesIn  (reinterpret_cast<Sample *>(0x38000000)); // 16k
@@ -95,35 +73,38 @@ static SampleBuffer samplesOut (reinterpret_cast<Sample *>(0x2000C000)); // 16k
 static SampleBuffer samplesSigGen (reinterpret_cast<Sample *>(0x20010000)); // 16k
 #endif
 
+// Algorithm binary storage
+//
+constexpr unsigned int MAX_ELF_FILE_SIZE = 16 * 1024;
 static unsigned char elf_file_store[MAX_ELF_FILE_SIZE];
 __attribute__((section(".convdata")))
 static ELF::Entry elf_entry = nullptr;
 
+// Other variables
+//
+static ErrorManager EM;
+static time_measurement_t conversion_time_measurement;
 static char userMessageBuffer[128];
 static unsigned char userMessageSize = 0;
 
+// Functions
+//
 __attribute__((section(".convcode")))
 static void conversion_unprivileged_main();
-
-static void mpu_setup();
+static void startThreads();
+static void mpuSetup();
 static void abortAlgorithmFromISR();
-static void signal_operate(adcsample_t *buffer, size_t count);
-static void signal_operate_measure(adcsample_t *buffer, size_t count);
-
-#if defined(TARGET_PLATFORM_L4)
-constexpr auto LINE_LED_GREEN = PAL_LINE(GPIOC_BASE, 10U);
-constexpr auto LINE_LED_YELLOW = PAL_LINE(GPIOC_BASE, 11U);
-constexpr auto LINE_LED_RED = PAL_LINE(GPIOC_BASE, 12U);
-#endif
+static void signalOperate(adcsample_t *buffer, size_t count);
+static void signalOperateMeasure(adcsample_t *buffer, size_t count);
 
 int main()
 {
-    // Initialize the RTOS
+    // Initialize ChibiOS
     halInit();
     chSysInit();
 
     SCB->CPACR |= 0xF << 20; // Enable FPU
-    mpu_setup();
+    mpuSetup();
 
 #if defined(TARGET_PLATFORM_L4)
     palSetLineMode(LINE_LED_GREEN, PAL_MODE_OUTPUT_PUSHPULL);
@@ -140,7 +121,42 @@ int main()
     SClock::setRate(SClock::Rate::R32K);
     ADC::setRate(SClock::Rate::R32K);
 
-    chTMObjectInit(&conversion_time_measurement);
+    startThreads();
+    chThdExit(0);
+    return 0;
+}
+
+static THD_FUNCTION(monitorThread, arg);           // Runs status LEDs and allows debug halt.
+static THD_FUNCTION(conversionThreadMonitor, arg); // Monitors and manages algo. thread.
+static THD_FUNCTION(conversionThread, arg);        // Algorithm thread (unprivileged).
+static THD_FUNCTION(communicationThread, arg);     // Manages USB communications.
+
+// Need to hold some thread handles for mailbox usage.
+static thread_t *conversionThreadHandle = nullptr;
+__attribute__((section(".convdata")))
+static thread_t *conversionThreadMonitorHandle = nullptr;
+
+// The more stack for the algorithm, the merrier.
+constexpr unsigned int conversionThreadUPWASize =
+#if defined(TARGET_PLATFORM_H7)
+                                                  62 * 1024;
+#else
+                                                  15 * 1024;
+#endif
+
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(monitorThreadWA, 256);
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(conversionThreadMonitorWA, 1024);
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(conversionThreadWA, 128); // For entering unprivileged mode.
+__attribute__((section(".convdata")))
+static THD_WORKING_AREA(conversionThreadUPWA, conversionThreadUPWASize);
+__attribute__((section(".stacks")))
+static THD_WORKING_AREA(communicationThreadWA, 4096);
+
+void startThreads()
+{
     chThdCreateStatic(
         monitorThreadWA, sizeof(monitorThreadWA),
         LOWPRIO,
@@ -149,19 +165,17 @@ int main()
         conversionThreadMonitorWA, sizeof(conversionThreadMonitorWA),
         NORMALPRIO + 1,
         conversionThreadMonitor, nullptr);
+    auto conversionThreadUPWAEnd =
+        reinterpret_cast<uint32_t>(conversionThreadUPWA) + conversionThreadUPWASize;
     conversionThreadHandle = chThdCreateStatic(
         conversionThreadWA, sizeof(conversionThreadWA),
         HIGHPRIO,
         conversionThread,
-        reinterpret_cast<void *>(reinterpret_cast<uint32_t>(conversionThreadUPWA) +
-                                 conversionThreadUPWASize));
+        reinterpret_cast<void *>(conversionThreadUPWAEnd));
     chThdCreateStatic(
         communicationThreadWA, sizeof(communicationThreadWA),
         NORMALPRIO,
         communicationThread, nullptr);
-
-    chThdExit(0);
-    return 0;
 }
 
 THD_FUNCTION(communicationThread, arg)
@@ -190,7 +204,7 @@ THD_FUNCTION(communicationThread, arg)
                 // 'S' - Stop conversion.
                 // 's' - Get latest block of conversion results.
                 // 't' - Get latest block of conversion input.
-		// 'u' - Get user message.
+                // 'u' - Get user message.
                 // 'W' - Start signal generator (siggen).
                 // 'w' - Stop siggen.
 
@@ -222,8 +236,22 @@ THD_FUNCTION(communicationThread, arg)
                     if (EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize)) {
                         unsigned int count = cmd[1] | (cmd[2] << 8);
                         if (EM.assert(count <= MAX_SAMPLE_BUFFER_SIZE, Error::BadParam)) {
-                            samplesSigGen.setSize(count);
-                            USBSerial::read(samplesSigGen.bytedata(), samplesSigGen.bytesize());
+                            if (run_status == RunStatus::Idle) {
+                                samplesSigGen.setSize(count * 2);
+                                USBSerial::read(
+                                    reinterpret_cast<uint8_t *>(samplesSigGen.middata()),
+                                    samplesSigGen.bytesize() / 2);
+                            } else if (run_status == RunStatus::Running) {
+                                int more;
+                                do {
+                                    chThdSleepMicroseconds(10);
+                                    more = DAC::sigGenWantsMore();
+                                } while (more == -1);
+
+                                USBSerial::read(reinterpret_cast<uint8_t *>(
+                                    more == 0 ? samplesSigGen.data() : samplesSigGen.middata()),
+                                    samplesSigGen.bytesize() / 2);
+                            }
                         }
                     }
                     break;
@@ -275,7 +303,7 @@ THD_FUNCTION(communicationThread, arg)
                     if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle)) {
                         run_status = RunStatus::Running;
                         samplesOut.clear();
-                        ADC::start(samplesIn.data(), samplesIn.size(), signal_operate_measure);
+                        ADC::start(samplesIn.data(), samplesIn.size(), signalOperateMeasure);
                         DAC::start(0, samplesOut.data(), samplesOut.size());
                     }
                     break;
@@ -293,7 +321,7 @@ THD_FUNCTION(communicationThread, arg)
                     if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle)) {
                         run_status = RunStatus::Running;
                         samplesOut.clear();
-                        ADC::start(samplesIn.data(), samplesIn.size(), signal_operate);
+                        ADC::start(samplesIn.data(), samplesIn.size(), signalOperate);
                         DAC::start(0, samplesOut.data(), samplesOut.size());
                     }
                     break;
@@ -488,7 +516,7 @@ void conversion_unprivileged_main()
     }
 }
 
-void mpu_setup()
+void mpuSetup()
 {
     // Set up MPU for user algorithm
 #if defined(TARGET_PLATFORM_H7)
@@ -561,7 +589,7 @@ void abortAlgorithmFromISR()
     }
 }
 
-void signal_operate(adcsample_t *buffer, size_t)
+void signalOperate(adcsample_t *buffer, size_t)
 {
     chSysLockFromISR();
 
@@ -582,7 +610,7 @@ void signal_operate(adcsample_t *buffer, size_t)
     }
 }
 
-void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
+void signalOperateMeasure(adcsample_t *buffer, [[maybe_unused]] size_t count)
 {
     chSysLockFromISR();
     if (buffer == samplesIn.data()) {
@@ -594,7 +622,7 @@ void signal_operate_measure(adcsample_t *buffer, [[maybe_unused]] size_t count)
     }
     chSysUnlockFromISR();
 
-    ADC::setOperation(signal_operate);
+    ADC::setOperation(signalOperate);
 }
 
 extern "C" {
@@ -654,7 +682,7 @@ void port_syscall(struct port_extctx *ctxp, uint32_t n)
         }
         break;
     case 3:
-        ctxp->r0 = ADC::readAlt(0);
+        ctxp->r0 = ADC::readAlt(ctxp->r0);
         break;
     case 4:
         {

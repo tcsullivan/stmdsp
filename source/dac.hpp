@@ -2,7 +2,7 @@
  * @file dac.hpp
  * @brief Manages signal creation using the DAC.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
@@ -22,6 +22,8 @@ public:
 
     static void start(int channel, dacsample_t *buffer, size_t count);
     static void stop(int channel);
+
+    static int sigGenWantsMore();
 
 private:
     static DACDriver *m_driver[2];

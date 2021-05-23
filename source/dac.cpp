@@ -2,7 +2,7 @@
  * @file dac.cpp
  * @brief Manages signal creation using the DAC.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
@@ -22,9 +22,16 @@ const DACConfig DAC::m_config = {
     .cr = 0
 };
 
+static int dacIsDone = -1;
+static void dacEndCallback(DACDriver *dacd)
+{
+    if (dacd == &DACD2)
+        dacIsDone = dacIsBufferComplete(dacd) ? 1 : 0;
+}
+
 const DACConversionGroup DAC::m_group_config = {
     .num_channels = 1,
-    .end_cb = nullptr,
+    .end_cb = dacEndCallback,
     .error_cb = nullptr,
 #if defined(TARGET_PLATFORM_H7)
     .trigger = 5 // TIM6_TRGO
@@ -45,9 +52,16 @@ void DAC::begin()
 void DAC::start(int channel, dacsample_t *buffer, size_t count)
 {
     if (channel >= 0 && channel < 2) {
+        if (channel == 1)
+            dacIsDone = -1;
         dacStartConversion(m_driver[channel], &m_group_config, buffer, count);
         SClock::start();
     }
+}
+
+int DAC::sigGenWantsMore()
+{
+    return dacIsDone;
 }
 
 void DAC::stop(int channel)

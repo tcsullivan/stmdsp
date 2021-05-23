@@ -48,18 +48,16 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
             m_device->continuous_start_measure();
             m_timer_performance->StartOnce(1000);
         } else {
-            if (m_device->is_siggening() && m_wav_clip) {
-                // TODO Confirm need for factor of 500
-                m_timer_wavclip->Start(m_device->get_buffer_size() * 500 /
-                                       srateNums[m_rate_select->GetSelection()]);
-            } else if (m_conv_result_log) {
-                m_timer_record->Start(m_device->get_buffer_size() /
-                      srateNums[m_rate_select->GetSelection()] *
-                      800 / 1000);
-            } else if (m_run_draw_samples->IsChecked()) {
-                m_timer_record->Start(m_device->get_buffer_size() /
-                      srateNums[m_rate_select->GetSelection()]);
-            }
+            auto reqSpeedExact =
+                m_device->get_buffer_size()
+                / static_cast<float>(srateNums[m_rate_select->GetSelection()])
+                * 1000.f * 0.5f;
+            int reqSpeed = reqSpeedExact;
+
+            if (m_device->is_siggening() && m_wav_clip)
+                m_timer_wavclip->Start(reqSpeed);
+            if (m_conv_result_log || m_run_draw_samples->IsChecked())
+                m_timer_record->Start(reqSpeed);
 
             m_device->continuous_start();
         }

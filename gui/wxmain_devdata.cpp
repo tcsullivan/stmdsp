@@ -49,16 +49,16 @@ const char *makefile_text_l4 =
 #endif
     "arm-none-eabi-g++ -x c++ -Os -std=c++20 -fno-exceptions -fno-rtti "
         "-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -mtune=cortex-m4 "
-	"-nostartfiles -I$1/cmsis"
+        "-nostartfiles -I$1/cmsis "
         "-Wl,-Ttext-segment=0x10000000 -Wl,-zmax-page-size=512 -Wl,-eprocess_data_entry "
         "$0 -o $0.o" NEWLINE
-	COPY " $0.o $0.orig.o" NEWLINE
-	"arm-none-eabi-strip -s -S --strip-unneeded $0.o" NEWLINE
-	"arm-none-eabi-objcopy --remove-section .ARM.attributes "
+    COPY " $0.o $0.orig.o" NEWLINE
+    "arm-none-eabi-strip -s -S --strip-unneeded $0.o" NEWLINE
+    "arm-none-eabi-objcopy --remove-section .ARM.attributes "
                           "--remove-section .comment "
                           "--remove-section .noinit "
                           "$0.o" NEWLINE
-	"arm-none-eabi-size $0.o" NEWLINE;
+    "arm-none-eabi-size $0.o" NEWLINE;
 
 // $0 = buffer size
 const char *file_header_h7 = R"cpp(
@@ -168,10 +168,20 @@ asm("vsqrt.f32 s0, s0; bx lr");
 return 0;
 }
 
-auto readalt() {
+auto readpot1() {
 Sample s;
-asm("push {r4-r6}; svc 3; mov %0, r0; pop {r4-r6}" : "=&r"(s));
+asm("push {r4-r6}; eor r0, r0; svc 3; mov %0, r0; pop {r4-r6}" : "=&r"(s));
 return s;
+}
+auto readpot2() {
+Sample s;
+asm("push {r4-r6}; mov r0, #1; svc 3; mov %0, r0; pop {r4-r6}" : "=&r"(s));
+return s;
+}
+
+void puts(const char *s) {
+// 's' will already be in r0.
+asm("push {r4-r6}; svc 4; pop {r4-r6}");
 }
 
 // End stmdspgui header code

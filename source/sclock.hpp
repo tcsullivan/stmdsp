@@ -1,3 +1,14 @@
+/**
+ * @file sclock.hpp
+ * @brief Manages sampling rate clock speeds.
+ *
+ * Copyright (C) 2021 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #ifndef SCLOCK_HPP_
 #define SCLOCK_HPP_
 

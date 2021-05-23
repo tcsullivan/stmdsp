@@ -2,7 +2,7 @@
  * @file usbserial.cpp
  * @brief Wrapper for ChibiOS's SerialUSBDriver.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
@@ -32,7 +32,7 @@ bool USBSerial::isActive()
 {
     if (auto config = m_driver->config; config != nullptr) {
         if (auto usbp = config->usbp; usbp != nullptr)
-            return usbp->state == USB_ACTIVE;
+            return usbp->state == USB_ACTIVE && !ibqIsEmptyI(&m_driver->ibqueue);
     }
 
     return false;

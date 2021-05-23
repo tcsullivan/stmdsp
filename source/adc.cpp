@@ -2,7 +2,7 @@
  * @file adc.cpp
  * @brief Manages signal reading through the ADC.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
@@ -69,7 +69,7 @@ static void readAltCallback(ADCDriver *)
 }
 ADCConversionGroup ADC::m_group_config2 = {
     .circular = false,
-    .num_channels = 1,
+    .num_channels = 2,
     .end_cb = readAltCallback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
@@ -88,10 +88,10 @@ ADCConversionGroup ADC::m_group_config2 = {
     .awd3cr = 0,
 #endif
     .smpr = {
-        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_12P5), 0
+        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_12P5) | ADC_SMPR1_SMP_AN2(ADC_SMPR_SMP_12P5), 0
     },
     .sqr = {
-        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1),
+        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1) | ADC_SQR1_SQ2_N(ADC_CHANNEL_IN2),
         0, 0, 0
     },
 };
@@ -107,6 +107,7 @@ void ADC::begin()
 #else
     palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG); // Algorithm in
     palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG); // Potentiometer 1
+    palSetPadMode(GPIOC, 1, PAL_MODE_INPUT_ANALOG); // Potentiometer 2
 #endif
 
     adcStart(m_driver, &m_config);
@@ -135,15 +136,15 @@ void ADC::stop()
 
 adcsample_t ADC::readAlt(unsigned int id)
 {
-    if (id != 0)
+    if (id > 1)
         return 0;
-    static adcsample_t result[32] = {};
+    static adcsample_t result[16] = {};
     readAltDone = false;
-    adcStartConversion(m_driver2, &m_group_config2, result, 32);
+    adcStartConversion(m_driver2, &m_group_config2, result, 8);
     while (!readAltDone)
-        ;
+        __WFI();
     adcStopConversion(m_driver2);
-    return result[0];
+    return result[id];
 }
 
 void ADC::setRate(SClock::Rate rate)
