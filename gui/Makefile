@@ -32,7 +32,7 @@ endif
 OFILES = $(patsubst %.cc, %.o, $(patsubst %.cpp, %.o, $(CXXFILES)))
 
 ifeq ($(UNAME), Linux)
-LIBS = $(shell wx-config --libs) -lwx_gtk3u_stc-3.1
+LIBS = $(shell wx-config --libs) -lwx_gtk3u_stc-3.0
 else
 LIBS = -lSetupAPI \
        -LC:\wx\lib\gcc810_x64_dll -lwxbase31u -lwxmsw31u_core -lwxmsw31u_stc

@@ -152,8 +152,9 @@ MainFrame::MainFrame() :
     Bind(wxEVT_TIMER,        &MainFrame::onTimerRecord,      this, Id::TimerRecord);
     Bind(wxEVT_TIMER,        &MainFrame::onTimerWavClip,     this, Id::TimerWavClip);
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onCloseEvent,       this, wxID_ANY);
-  m_compile_output->
-    Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, Id::CompileOutput);
+//  m_compile_output->
+//    Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, Id::CompileOutput);
+    Bind(wxEVT_PAINT,        &MainFrame::onPaint,        this, wxID_ANY);
 
     // Toolbar actions
     Bind(wxEVT_BUTTON,   &MainFrame::onRunCompile,        this, wxID_ANY, wxID_ANY, comp);
@@ -234,7 +235,7 @@ void MainFrame::onTimerRecord(wxTimerEvent&)
         if (m_run_draw_samples->IsChecked()) {
             samples = m_device->continuous_read_input();
             std::copy(samples.cbegin(), samples.cend(), m_device_samples_input);
-            m_compile_output->Refresh();
+            /*m_compile_output->*/Refresh();
         }
     }
 }
@@ -253,42 +254,50 @@ void MainFrame::onTimerWavClip(wxTimerEvent&)
 
 void MainFrame::onPaint(wxPaintEvent&)
 {
-    if (!m_is_running || !m_run_draw_samples->IsChecked())
+    if (!m_is_running || !m_run_draw_samples->IsChecked()) {
+        if (!m_compile_output->IsShown())
+            m_compile_output->Show();
         return;
+    } else if (m_compile_output->IsShown()) {
+        m_compile_output->Hide();
+    }
 
-    const auto& dim = m_compile_output->GetSize();
+    auto py = m_compile_output->GetScreenPosition().y - this->GetScreenPosition().y - 28;
     wxRect rect {
-        0, 0, dim.GetWidth(), dim.GetHeight()
+        0, py,
+        this->GetSize().GetWidth(),
+        this->GetSize().GetHeight() - py - 60
     };
 
-    wxBufferedPaintDC dc (m_compile_output);
-    dc.SetBrush(*wxBLACK_BRUSH);
-    dc.SetPen(*wxBLACK_PEN);
-    dc.DrawRectangle(rect);
+    auto *dc = new wxBufferedPaintDC(this);
+    dc->SetBrush(*wxBLACK_BRUSH);
+    dc->SetPen(*wxBLACK_PEN);
+    dc->DrawRectangle(rect);
     auto stoy = [&](stmdsp::adcsample_t s) {
-        return static_cast<float>(rect.GetHeight()) -
+        return static_cast<float>(py) + rect.GetHeight() -
             (static_cast<float>(rect.GetHeight()) * s / 4095.f);
     };
     auto scount = m_device->get_buffer_size();
     float dx = static_cast<float>(rect.GetWidth()) / scount;
     float x = 0;
     float lasty = stoy(2048);
-    dc.SetBrush(wxBrush(wxColour(0xFF, 0, 0, 0x80)));
-    dc.SetPen(wxPen(wxColour(0xFF, 0, 0, 0x80)));
+    dc->SetBrush(wxBrush(wxColour(0xFF, 0, 0, 0x80)));
+    dc->SetPen(wxPen(wxColour(0xFF, 0, 0, 0x80)));
     for (decltype(scount) i = 0; i < scount; i++) {
         auto y = stoy(m_device_samples[i]);
-        dc.DrawLine(x, lasty, x + dx, y);
+        dc->DrawLine(x, lasty, x + dx, y);
         x += dx, lasty = y;
     }
     x = 0;
     lasty = stoy(2048);
-    dc.SetBrush(wxBrush(wxColour(0, 0, 0xFF, 0x80)));
-    dc.SetPen(wxPen(wxColour(0, 0, 0xFF, 0x80)));
+    dc->SetBrush(wxBrush(wxColour(0, 0, 0xFF, 0x80)));
+    dc->SetPen(wxPen(wxColour(0, 0, 0xFF, 0x80)));
     for (decltype(scount) i = 0; i < scount; i++) {
         auto y = stoy(m_device_samples_input[i]);
-        dc.DrawLine(x, lasty, x + dx, y);
+        dc->DrawLine(x, lasty, x + dx, y);
         x += dx, lasty = y;
     }
+    delete dc;
 }
 
 void MainFrame::prepareEditor()
@@ -452,6 +461,8 @@ void MainFrame::updateMenuOptions()
     m_menu_bar->Enable(MRunGenUpload, connected);
     m_menu_bar->Enable(MRunGenStart, connected);
 
+    m_menu_bar->Enable(MRunConnect, !m_is_running);
+
     bool nrunning = connected && !m_is_running;
     m_menu_bar->Enable(MRunUpload, nrunning);
     m_menu_bar->Enable(MRunUnload, nrunning);
@@ -459,6 +470,7 @@ void MainFrame::updateMenuOptions()
     m_menu_bar->Enable(MRunMeasure, nrunning);
     m_menu_bar->Enable(MRunDrawSamples, nrunning);
     m_menu_bar->Enable(MRunLogResults, nrunning);
+    m_menu_bar->Enable(MRunGenUpload, nrunning);
     m_rate_select->Enable(nrunning);
 }
 

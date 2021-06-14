@@ -54,10 +54,13 @@ void MainFrame::onRunStart(wxCommandEvent& ce)
                 * 1000.f * 0.5f;
             int reqSpeed = reqSpeedExact;
 
-            if (m_device->is_siggening() && m_wav_clip)
+            if (m_device->is_siggening() && m_wav_clip) {
                 m_timer_wavclip->Start(reqSpeed);
+                // Cap refresh speed in case sample drawing runs too.
+                reqSpeed = std::max(reqSpeed, 500);
+            }
             if (m_conv_result_log || m_run_draw_samples->IsChecked())
-                m_timer_record->Start(reqSpeed);
+                m_timer_record->Start(std::max(reqSpeed, 200));
 
             m_device->continuous_start();
         }

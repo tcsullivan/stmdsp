@@ -17,7 +17,7 @@ DACDriver *DAC::m_driver[2] = {
 };
 
 const DACConfig DAC::m_config = {
-    .init = 0,
+    .init = 2048,
     .datamode = DAC_DHRM_12BIT_RIGHT,
     .cr = 0
 };

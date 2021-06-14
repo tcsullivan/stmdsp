@@ -21,7 +21,7 @@ class MainApp : public wxApp
 {
 public:
     virtual bool OnInit() final {
-        wxFont::AddPrivateFont("./Hack-Regular.ttf");
+        //wxFont::AddPrivateFont("./Hack-Regular.ttf");
 
         m_main_frame = new MainFrame;
         m_main_frame->Show(true);
