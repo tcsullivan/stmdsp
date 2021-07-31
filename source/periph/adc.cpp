@@ -88,7 +88,7 @@ ADCConversionGroup ADC::m_group_config2 = {
     .awd3cr = 0,
 #endif
     .smpr = {
-        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_12P5) | ADC_SMPR1_SMP_AN2(ADC_SMPR_SMP_12P5), 0
+        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_2P5) | ADC_SMPR1_SMP_AN2(ADC_SMPR_SMP_2P5), 0
     },
     .sqr = {
         ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1) | ADC_SQR1_SQ2_N(ADC_CHANNEL_IN2),
@@ -141,8 +141,8 @@ adcsample_t ADC::readAlt(unsigned int id)
     static adcsample_t result[16] = {};
     readAltDone = false;
     adcStartConversion(m_driver2, &m_group_config2, result, 8);
-    while (!readAltDone)
-        __WFI();
+    while (!readAltDone);
+        //__WFI();
     adcStopConversion(m_driver2);
     return result[id];
 }

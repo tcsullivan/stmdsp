@@ -1,12 +1,12 @@
 /**
- * @file elf_format.cpp
+ * @file elf.h
  * @brief Defines ELF binary format info.
  *
  * Free to use, written by Clyne Sullivan.
  */
 
-#ifndef STMDSP_ELF_FORMAT_HPP_
-#define STMDSP_ELF_FORMAT_HPP_
+#ifndef STMDSP_ELF_HPP
+#define STMDSP_ELF_HPP
 
 #include <cstdint>
 
@@ -96,5 +96,5 @@ typedef struct {
 	Elf32_Word p_align;
 } __attribute__((packed)) Elf32_Phdr;
 
-#endif // STMDSP_ELF_FORMAT_HPP_
+#endif // STMDSP_ELF_HPP
 

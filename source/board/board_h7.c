@@ -262,5 +262,26 @@ bool mmc_lld_is_write_protected(MMCDriver *mmcp) {
  * @note    You can add your board-specific code here.
  */
 void boardInit(void) {
+    // Enable the FPU (floating-point unit)
+    SCB->CPACR |= 0xF << 20;
 
+    // Setup the MPU (memory protection unit):
+    //     Region 2: Data for algorithm thread
+    //     Region 3: Code for algorithm thread
+    //     Region 4: User algorithm code
+    mpuConfigureRegion(MPU_REGION_2,
+                       0x20000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_64K |
+                       MPU_RASR_ENABLE);
+    mpuConfigureRegion(MPU_REGION_3,
+                       0x0807F800,
+                       MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_2K |
+                       MPU_RASR_ENABLE);
+    mpuConfigureRegion(MPU_REGION_4,
+                       0x00000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_64K |
+                       MPU_RASR_ENABLE);
 }

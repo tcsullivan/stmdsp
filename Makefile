@@ -128,8 +128,8 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Auto-build files in ./source recursively.
 #include $(CHIBIOS)/tools/mk/autobuild.mk
-ALLCSRC += $(wildcard source/*.c)
-ALLCPPSRC += $(wildcard source/*.cpp)
+ALLCSRC += $(wildcard source/*.c) $(wildcard source/periph/*.c)
+ALLCPPSRC += $(wildcard source/*.cpp) $(wildcard source/periph/*.cpp)
 ALLASMSRC += $(wildcard source/*.s)
 # Other files (optional).
 #include $(CHIBIOS)/test/lib/test.mk
@@ -158,7 +158,8 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 
 # Inclusion directories.
-INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
+INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC) \
+         source source/periph
 
 # Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -pedantic
