@@ -7,13 +7,16 @@
 #include "runstatus.hpp"
 #include "samples.hpp"
 
-constexpr msg_t MSG_CONVFIRST          = 1;
-constexpr msg_t MSG_CONVSECOND         = 2;
-constexpr msg_t MSG_CONVFIRST_MEASURE  = 3;
-constexpr msg_t MSG_CONVSECOND_MEASURE = 4;
+// MSG_* things below are macros rather than constexpr
+// to ensure inlining.
 
-constexpr auto MSG_FOR_FIRST   = [](msg_t m) { return m & 1; };
-constexpr auto MSG_FOR_MEASURE = [](msg_t m) { return m > 2; };
+#define MSG_CONVFIRST          (1)
+#define MSG_CONVSECOND         (2)
+#define MSG_CONVFIRST_MEASURE  (3)
+#define MSG_CONVSECOND_MEASURE (4)
+
+#define MSG_FOR_FIRST(msg)   (msg & 1)
+#define MSG_FOR_MEASURE(msg) (msg > 2)
 
 time_measurement_t conversion_time_measurement;
 
@@ -24,7 +27,7 @@ thread_t *ConversionManager::m_thread_runner = nullptr;
 __attribute__((section(".stacks")))
 std::array<char, 1024> ConversionManager::m_thread_monitor_stack = {};
 __attribute__((section(".stacks")))
-std::array<char, 128> ConversionManager::m_thread_runner_entry_stack = {};
+std::array<char, THD_WORKING_AREA_SIZE(128)> ConversionManager::m_thread_runner_entry_stack = {};
 __attribute__((section(".convdata")))
 std::array<char, CONVERSION_THREAD_STACK_SIZE> ConversionManager::m_thread_runner_stack = {};
 

@@ -124,6 +124,7 @@ void updateGenerator(unsigned char *cmd)
                     more = DAC::sigGenWantsMore();
                 } while (more == -1);
 
+                // Receive streamed samples in half-buffer chunks.
                 USBSerial::read(reinterpret_cast<uint8_t *>(
                     more == 0 ? Samples::Generator.data() : Samples::Generator.middata()),
                     Samples::Generator.bytesize() / 2);

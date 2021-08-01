@@ -21,6 +21,22 @@ std::array<unsigned char, MAX_ELF_FILE_SIZE> ELFManager::m_file_buffer = {};
 
 static const unsigned char elf_header[] = { '\177', 'E', 'L', 'F' };
 
+__attribute__((section(".convcode")))
+ELFManager::EntryFunc ELFManager::loadedElf()
+{
+    return m_entry;
+}
+
+unsigned char *ELFManager::fileBuffer()
+{
+    return m_file_buffer.data();
+}
+
+void ELFManager::unload()
+{
+    m_entry = nullptr;
+}
+
 template<typename T>
 constexpr static auto ptr_from_offset(void *base, uint32_t offset)
 {

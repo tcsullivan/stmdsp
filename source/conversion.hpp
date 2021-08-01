@@ -53,7 +53,7 @@ private:
     static thread_t *m_thread_runner;
 
     static std::array<char, 1024> m_thread_monitor_stack;
-    static std::array<char, 128> m_thread_runner_entry_stack;
+    static std::array<char, THD_WORKING_AREA_SIZE(128)> m_thread_runner_entry_stack;
     static std::array<char, CONVERSION_THREAD_STACK_SIZE> m_thread_runner_stack;
 
     static std::array<msg_t, 2> m_mailbox_buffer;

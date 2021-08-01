@@ -12,6 +12,8 @@
 #ifndef STMDSP_MONITOR_HPP
 #define STMDSP_MONITOR_HPP
 
+#include "ch.h"
+
 #include <array>
 
 class Monitor
@@ -22,7 +24,7 @@ public:
 private:
     static void threadMonitor(void *);
 
-    static std::array<char, 256> m_thread_stack;
+    static std::array<char, THD_WORKING_AREA_SIZE(256)> m_thread_stack;
 };
 
 #endif // STMDSP_MONITOR_HPP

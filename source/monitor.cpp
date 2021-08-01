@@ -14,8 +14,10 @@
 #include "error.hpp"
 #include "runstatus.hpp"
 
-#include "ch.h"
 #include "hal.h"
+
+__attribute__((section(".stacks")))
+std::array<char, THD_WORKING_AREA_SIZE(256)> Monitor::m_thread_stack = {};
 
 void Monitor::begin()
 {
@@ -74,7 +76,4 @@ void Monitor::threadMonitor(void *)
         }
     }
 }
-
-__attribute__((section(".stacks")))
-std::array<char, 256> Monitor::m_thread_stack = {};
 

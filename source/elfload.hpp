@@ -25,18 +25,9 @@ public:
     using EntryFunc = Sample *(*)(Sample *, size_t);
     
     static EntryFunc loadFromInternalBuffer();
-
-    static EntryFunc loadedElf() {
-        return m_entry;
-    }
-
-    static unsigned char *fileBuffer() {
-        return m_file_buffer.data();
-    }
-
-    static void unload() {
-        m_entry = nullptr;
-    }
+    static EntryFunc loadedElf();
+    static unsigned char *fileBuffer();
+    static void unload();
 
 private:
     static EntryFunc m_entry;
