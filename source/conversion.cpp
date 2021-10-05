@@ -1,3 +1,14 @@
+/**
+ * @file conversion.cpp
+ * @brief Manages algorithm application (converts input samples to output).
+ *
+ * Copyright (C) 2021 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "conversion.hpp"
 
 #include "periph/adc.hpp"
@@ -17,8 +28,6 @@
 
 #define MSG_FOR_FIRST(msg)   (msg & 1)
 #define MSG_FOR_MEASURE(msg) (msg > 2)
-
-time_measurement_t conversion_time_measurement;
 
 __attribute__((section(".convdata")))
 thread_t *ConversionManager::m_thread_monitor = nullptr;

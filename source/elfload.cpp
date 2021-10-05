@@ -43,14 +43,16 @@ constexpr static auto ptr_from_offset(void *base, uint32_t offset)
     return reinterpret_cast<T>(reinterpret_cast<uint8_t *>(base) + offset);
 }
 
-ELFManager::EntryFunc ELFManager::loadFromInternalBuffer()
+bool ELFManager::loadFromInternalBuffer()
 {
+    m_entry = nullptr;
+
     auto elf_data = m_file_buffer.data();
 
     // Check the ELF's header signature
     auto ehdr = reinterpret_cast<Elf32_Ehdr *>(elf_data);
     if (!std::equal(ehdr->e_ident, ehdr->e_ident + 4, elf_header))
-        return nullptr;
+        return false;
 
     // Iterate through program header LOAD sections
     bool loaded = false;
@@ -74,6 +76,9 @@ ELFManager::EntryFunc ELFManager::loadFromInternalBuffer()
     }
 
 
-    return loaded ? reinterpret_cast<ELFManager::EntryFunc>(ehdr->e_entry) : nullptr;
+    if (loaded)
+        m_entry = reinterpret_cast<ELFManager::EntryFunc>(ehdr->e_entry);
+
+    return loaded;
 }
 

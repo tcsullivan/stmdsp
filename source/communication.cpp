@@ -142,8 +142,8 @@ void loadAlgorithm(unsigned char *cmd)
         unsigned int size = cmd[1] | (cmd[2] << 8);
         if (EM.assert(size < MAX_ELF_FILE_SIZE, Error::BadUserCodeSize)) {
             USBSerial::read(ELFManager::fileBuffer(), size);
-            auto entry = ELFManager::loadFromInternalBuffer();
-            EM.assert(entry != nullptr, Error::BadUserCodeLoad);
+            auto success = ELFManager::loadFromInternalBuffer();
+            EM.assert(success, Error::BadUserCodeLoad);
         }
     }
 }
@@ -214,6 +214,8 @@ void readIdentifier(unsigned char *)
 
 void readExecTime(unsigned char *)
 {
+    // Stores the measured execution time.
+    extern time_measurement_t conversion_time_measurement;
     USBSerial::write(reinterpret_cast<uint8_t *>(&conversion_time_measurement.last),
                      sizeof(rtcnt_t));
 }

@@ -7,6 +7,8 @@
 
 extern "C" {
 
+time_measurement_t conversion_time_measurement;
+
 __attribute__((naked))
 void port_syscall(struct port_extctx *ctxp, uint32_t n)
 {

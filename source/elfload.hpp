@@ -24,7 +24,7 @@ class ELFManager
 public:
     using EntryFunc = Sample *(*)(Sample *, size_t);
     
-    static EntryFunc loadFromInternalBuffer();
+    static bool loadFromInternalBuffer();
     static EntryFunc loadedElf();
     static unsigned char *fileBuffer();
     static void unload();

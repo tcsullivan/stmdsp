@@ -60,8 +60,5 @@ private:
     static mailbox_t m_mailbox;
 };
 
-// Stores the measured execution time.
-extern time_measurement_t conversion_time_measurement;
-
 #endif // STMDSP_CONVERSION_HPP
 
