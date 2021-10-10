@@ -19,17 +19,63 @@ void SampleBuffer::clear() {
 }
 __attribute__((section(".convcode")))
 void SampleBuffer::modify(Sample *data, unsigned int srcsize) {
-    auto size = srcsize < m_size ? srcsize : m_size;
+    auto size = std::min(srcsize, m_size);
+    size = (size + 15) & 0xFF0;
+
     m_modified = m_buffer;
-    for (Sample *d = m_buffer, *s = data; s != data + size;)
-        *d++ = *s++;
+    const int *src = reinterpret_cast<const int *>(data);
+    const int * const srcend = src + (size / 2);
+    int *dst = reinterpret_cast<int *>(m_buffer);
+    do {
+        int a = src[0];
+        int b = src[1];
+        int c = src[2];
+        int d = src[3];
+        int e = src[4];
+        int f = src[5];
+        int g = src[6];
+        int h = src[7];
+	dst[0] = a;
+	dst[1] = b;
+	dst[2] = c;
+	dst[3] = d;
+	dst[4] = e;
+	dst[5] = f;
+	dst[6] = g;
+	dst[7] = h;
+	src += 8;
+	dst += 8;
+    } while (src < srcend);
 }
 __attribute__((section(".convcode")))
 void SampleBuffer::midmodify(Sample *data, unsigned int srcsize) {
-    auto size = srcsize < m_size / 2 ? srcsize : m_size / 2;
+    auto size = std::min(srcsize, m_size / 2);
+    size = (size + 15) & 0xFF0;
+
     m_modified = middata();
-    for (Sample *d = middata(), *s = data; s != data + size;)
-        *d++ = *s++;
+    const int *src = reinterpret_cast<const int *>(data);
+    const int * const srcend = src + (size / 2);
+    int *dst = reinterpret_cast<int *>(middata());
+    do {
+        int a = src[0];
+        int b = src[1];
+        int c = src[2];
+        int d = src[3];
+        int e = src[4];
+        int f = src[5];
+        int g = src[6];
+        int h = src[7];
+	dst[0] = a;
+	dst[1] = b;
+	dst[2] = c;
+	dst[3] = d;
+	dst[4] = e;
+	dst[5] = f;
+	dst[6] = g;
+	dst[7] = h;
+	src += 8;
+	dst += 8;
+    } while (src < srcend);
 }
 
 void SampleBuffer::setModified() {
