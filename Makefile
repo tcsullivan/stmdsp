@@ -8,7 +8,7 @@ TARGET_PLATFORM = L4
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -Os -g3 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
+  USE_OPT = -O0 -g3 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
 endif
 
 # C specific options here (added to USE_OPT).
@@ -177,9 +177,9 @@ CPPWARN = -Wall -Wextra -Wundef -pedantic -Wno-volatile
 
 # List all user C define here, like -D_DEBUG=1
 UDEFS = -DCORTEX_ENABLE_WFI_IDLE=TRUE \
-		-DPORT_USE_SYSCALL=TRUE \
-		-DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0 \
-		-DTARGET_PLATFORM_$(TARGET_PLATFORM)
+        -DPORT_USE_SYSCALL=TRUE \
+        -DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0 \
+        -DTARGET_PLATFORM_$(TARGET_PLATFORM)
 
 # Define ASM defines here
 UADEFS =

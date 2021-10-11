@@ -105,7 +105,7 @@ void MemManage_Handler()
 {
     // 1. Get the stack pointer.
     uint32_t lr;
-	asm("mov %0, lr" : "=r" (lr));
+    asm("mov %0, lr" : "=r" (lr));
 
     // 2. Recover from the fault.
     ConversionManager::abort();
@@ -120,14 +120,14 @@ void HardFault_Handler()
     // Get the stack pointer.
     //uint32_t *stack;
     uint32_t lr;
-	asm("mov %0, lr" : "=r" (lr));
-	/*asm("\
-		tst lr, #4; \
-		ite eq; \
-		mrseq %0, msp; \
-		mrsne %0, psp; \
+    asm("mov %0, lr" : "=r" (lr));
+    /*asm("\
+        tst lr, #4; \
+        ite eq; \
+        mrseq %0, msp; \
+        mrsne %0, psp; \
         mov %1, lr; \
-	" : "=r" (stack), "=r" (lr));*/
+    " : "=r" (stack), "=r" (lr));*/
 
     // If coming from the algorithm, attempt to recover; otherwise, give up.
     if (run_status != RunStatus::Running && (lr & 4) != 0)
