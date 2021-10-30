@@ -83,11 +83,11 @@ thread_t *ConversionManager::getMonitorHandle()
     return m_thread_monitor;
 }
 
-void ConversionManager::abort()
+void ConversionManager::abort(bool fpu_stacked)
 {
     ELFManager::unload();
     EM.add(Error::ConversionAborted);
-    run_status = RunStatus::Recovering;
+    //run_status = RunStatus::Recovering;
 
     // Confirm that the exception return thread is the algorithm...
     uint32_t *psp;
@@ -104,7 +104,7 @@ void ConversionManager::abort()
         // We do this by rebuilding the thread's stacked exception return.
         auto newpsp = reinterpret_cast<uint32_t *>(m_thread_runner_stack.data() + 
                                                    m_thread_runner_stack.size() -
-                                                   8 * sizeof(uint32_t));
+                                                   (fpu_stacked ? 26 : 8) * sizeof(uint32_t));
         // Set the LR register to the thread's entry point.
         newpsp[5] = reinterpret_cast<uint32_t>(threadRunner);
         // Overwrite the instruction we'll return to with "bx lr" (jump to address in LR).

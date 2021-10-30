@@ -39,7 +39,7 @@ public:
     static thread_t *getMonitorHandle();
 
     // Internal only: Aborts a running conversion.
-    static void abort();
+    static void abort(bool fpu_stacked = true);
 
 private:
     static void threadMonitor(void *);

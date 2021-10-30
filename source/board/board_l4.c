@@ -277,9 +277,12 @@ bool mmc_lld_is_write_protected(MMCDriver *mmcp) {
  * @note    You can add your board-specific code here.
  */
 void boardInit(void) {
-    palSetLineMode(LINE_LED_GREEN, PAL_MODE_OUTPUT_PUSHPULL);
-    palSetLineMode(LINE_LED_YELLOW, PAL_MODE_OUTPUT_PUSHPULL);
     palSetLineMode(LINE_LED_RED, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetLineMode(LINE_LED_GREEN, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetLineMode(LINE_LED_BLUE, PAL_MODE_OUTPUT_PUSHPULL);
+    palClearLine(LINE_LED_RED);
+    palClearLine(LINE_LED_GREEN);
+    palClearLine(LINE_LED_BLUE);
 
     SCB->CPACR |= 0xF << 20; // Enable FPU
 

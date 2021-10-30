@@ -39,30 +39,31 @@ void Monitor::threadMonitor(void *)
 #endif
     };
 
-    palClearLine(LINE_LED_RED);
-    palClearLine(LINE_LED_YELLOW);
+    palSetLine(LINE_LED_RED);
+    palSetLine(LINE_LED_GREEN);
+    palSetLine(LINE_LED_BLUE);
 
     while (1) {
         bool isidle = run_status == RunStatus::Idle;
-        auto led = isidle ? LINE_LED_GREEN : LINE_LED_YELLOW;
+        auto led = isidle ? LINE_LED_GREEN : LINE_LED_BLUE;
         auto delay = isidle ? 500 : 250;
 
-        palSetLine(led);
+        palToggleLine(led);
         chThdSleepMilliseconds(delay);
-        palClearLine(led);
+        palToggleLine(led);
         chThdSleepMilliseconds(delay);
 
-        if (run_status == RunStatus::Idle && readButton()) {
-            palSetLine(LINE_LED_RED);
-            palSetLine(LINE_LED_YELLOW);
+        if (isidle && readButton()) {
+            palClearLine(LINE_LED_GREEN);
+            palClearLine(LINE_LED_BLUE);
             chSysLock();
             while (readButton())
                 asm("nop");
             while (!readButton())
                 asm("nop");
             chSysUnlock();
-            palClearLine(LINE_LED_RED);
-            palClearLine(LINE_LED_YELLOW);
+            palSetLine(LINE_LED_GREEN);
+            palSetLine(LINE_LED_BLUE);
             chThdSleepMilliseconds(500);
         }
 
@@ -70,9 +71,9 @@ void Monitor::threadMonitor(void *)
         if (auto err = EM.hasError(); err ^ erroron) {
             erroron = err;
             if (err)
-                palSetLine(LINE_LED_RED);
-            else
                 palClearLine(LINE_LED_RED);
+            else
+                palSetLine(LINE_LED_RED);
         }
     }
 }

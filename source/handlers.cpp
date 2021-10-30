@@ -108,7 +108,7 @@ void MemManage_Handler()
     asm("mov %0, lr" : "=r" (lr));
 
     // 2. Recover from the fault.
-    ConversionManager::abort();
+    ConversionManager::abort((lr & (1 << 4)) ? false : true);
 
     // 3. Return.
     asm("mov lr, %0; bx lr" :: "r" (lr));
