@@ -24,6 +24,7 @@ public:
     static void stop(int channel);
 
     static int sigGenWantsMore();
+    static int isSigGenRunning();
 
 private:
     static DACDriver *m_driver[2];

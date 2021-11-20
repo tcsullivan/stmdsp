@@ -61,7 +61,18 @@ void DAC::start(int channel, dacsample_t *buffer, size_t count)
 
 int DAC::sigGenWantsMore()
 {
-    return dacIsDone;
+    if (dacIsDone != -1) {
+        int tmp = dacIsDone;
+        dacIsDone = -1;
+        return tmp;
+    } else {
+        return -1;
+    }
+}
+
+int DAC::isSigGenRunning()
+{
+    return m_driver[1]->state == DAC_ACTIVE;
 }
 
 void DAC::stop(int channel)

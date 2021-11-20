@@ -112,22 +112,23 @@ void updateGenerator(unsigned char *cmd)
     if (EM.assert(USBSerial::read(&cmd[1], 2) == 2, Error::BadParamSize)) {
         unsigned int count = cmd[1] | (cmd[2] << 8);
         if (EM.assert(count <= MAX_SAMPLE_BUFFER_SIZE, Error::BadParam)) {
-            if (run_status == RunStatus::Idle) {
+            if (!DAC::isSigGenRunning()) {
                 Samples::Generator.setSize(count);
                 USBSerial::read(
                     reinterpret_cast<uint8_t *>(Samples::Generator.data()),
                     Samples::Generator.bytesize());
-            } else if (run_status == RunStatus::Running) {
-                int more;
-                do {
-                    chThdSleepMicroseconds(10);
-                    more = DAC::sigGenWantsMore();
-                } while (more == -1);
+            } else {
+                const int more = DAC::sigGenWantsMore();
+                if (more == -1) {
+                    USBSerial::write(reinterpret_cast<const uint8_t *>("\0"), 1);
+                } else {
+                    USBSerial::write(reinterpret_cast<const uint8_t *>("\1"), 1);
 
-                // Receive streamed samples in half-buffer chunks.
-                USBSerial::read(reinterpret_cast<uint8_t *>(
-                    more == 0 ? Samples::Generator.data() : Samples::Generator.middata()),
-                    Samples::Generator.bytesize() / 2);
+                    // Receive streamed samples in half-buffer chunks.
+                    USBSerial::read(reinterpret_cast<uint8_t *>(
+                        more == 0 ? Samples::Generator.data() : Samples::Generator.middata()),
+                        Samples::Generator.bytesize() / 2);
+                }
             }
         }
     }
