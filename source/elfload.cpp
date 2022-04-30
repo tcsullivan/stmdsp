@@ -1,21 +1,41 @@
 /**
- * @file elf_load.cpp
+ * @file elfload.cpp
  * @brief Loads ELF binary data into memory for execution.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "elf_load.hpp"
-#include "elf_format.hpp"
+#include "elfload.hpp"
+#include "elf.h"
 
 #include <algorithm>
 #include <cstring>
 
+__attribute__((section(".convdata")))
+ELFManager::EntryFunc ELFManager::m_entry = nullptr;
+std::array<unsigned char, MAX_ELF_FILE_SIZE> ELFManager::m_file_buffer = {};
+
 static const unsigned char elf_header[] = { '\177', 'E', 'L', 'F' };
+
+__attribute__((section(".convcode")))
+ELFManager::EntryFunc ELFManager::loadedElf()
+{
+    return m_entry;
+}
+
+unsigned char *ELFManager::fileBuffer()
+{
+    return m_file_buffer.data();
+}
+
+void ELFManager::unload()
+{
+    m_entry = nullptr;
+}
 
 template<typename T>
 constexpr static auto ptr_from_offset(void *base, uint32_t offset)
@@ -23,14 +43,16 @@ constexpr static auto ptr_from_offset(void *base, uint32_t offset)
     return reinterpret_cast<T>(reinterpret_cast<uint8_t *>(base) + offset);
 }
 
-namespace ELF {
-
-Entry load(void *elf_data)
+bool ELFManager::loadFromInternalBuffer()
 {
+    m_entry = nullptr;
+
+    auto elf_data = m_file_buffer.data();
+
     // Check the ELF's header signature
     auto ehdr = reinterpret_cast<Elf32_Ehdr *>(elf_data);
     if (!std::equal(ehdr->e_ident, ehdr->e_ident + 4, elf_header))
-        return nullptr;
+        return false;
 
     // Iterate through program header LOAD sections
     bool loaded = false;
@@ -54,8 +76,9 @@ Entry load(void *elf_data)
     }
 
 
-    return loaded ? reinterpret_cast<Entry>(ehdr->e_entry) : nullptr;
-}
+    if (loaded)
+        m_entry = reinterpret_cast<ELFManager::EntryFunc>(ehdr->e_entry);
 
-} // namespace ELF
+    return loaded;
+}
 

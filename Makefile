@@ -8,7 +8,7 @@ TARGET_PLATFORM = L4
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O0 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
+  USE_OPT = -O0 -g3 -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nosys.specs
 endif
 
 # C specific options here (added to USE_OPT).
@@ -18,7 +18,7 @@ endif
 
 # C++ specific options here (added to USE_OPT).
 ifeq ($(USE_CPPOPT),)
-  USE_CPPOPT = -std=c++2a -fno-rtti
+  USE_CPPOPT = -std=c++2a -fno-rtti -fno-exceptions
 endif
 
 # Enable this if you want the linker to remove unused code and data.
@@ -128,8 +128,8 @@ include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/port_v7m.mk
 # Auto-build files in ./source recursively.
 #include $(CHIBIOS)/tools/mk/autobuild.mk
-ALLCSRC += $(wildcard source/*.c)
-ALLCPPSRC += $(wildcard source/*.cpp)
+ALLCSRC += $(wildcard source/*.c) $(wildcard source/periph/*.c)
+ALLCPPSRC += $(wildcard source/*.cpp) $(wildcard source/periph/*.cpp)
 ALLASMSRC += $(wildcard source/*.s)
 # Other files (optional).
 #include $(CHIBIOS)/test/lib/test.mk
@@ -158,7 +158,8 @@ ASMSRC = $(ALLASMSRC)
 ASMXSRC = $(ALLXASMSRC)
 
 # Inclusion directories.
-INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC)
+INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC) \
+         source source/periph
 
 # Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -pedantic
@@ -176,9 +177,9 @@ CPPWARN = -Wall -Wextra -Wundef -pedantic -Wno-volatile
 
 # List all user C define here, like -D_DEBUG=1
 UDEFS = -DCORTEX_ENABLE_WFI_IDLE=TRUE \
-		-DPORT_USE_SYSCALL=TRUE \
-		-DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0 \
-		-DTARGET_PLATFORM_$(TARGET_PLATFORM)
+        -DPORT_USE_SYSCALL=TRUE \
+        -DPORT_USE_GUARD_MPU_REGION=MPU_REGION_0 \
+        -DTARGET_PLATFORM_$(TARGET_PLATFORM)
 
 # Define ASM defines here
 UADEFS =

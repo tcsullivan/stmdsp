@@ -1,10 +1,9 @@
-**/.*
-**/*.o
-**/*.so
-perf*
-build
-eagle/*#*
-gui/stmdspgui
-doc/guide.odt
+.*
+*.o
+*.so
 *.exe
 *.dll
+perf*
+build
+gui/stmdspgui
+doc/guide.odt

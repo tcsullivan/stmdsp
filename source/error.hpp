@@ -1,6 +1,18 @@
-#include <array>
+/**
+ * @file error.hpp
+ * @brief Tracks and reports non-critical errors.
+ *
+ * Copyright (C) 2021 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
 
-constexpr unsigned int MAX_ERROR_QUEUE_SIZE = 8;
+#ifndef STMDSP_ERROR_HPP
+#define STMDSP_ERROR_HPP
+
+#include <array>
 
 enum class Error : char
 {
@@ -15,28 +27,20 @@ enum class Error : char
 
 class ErrorManager
 {
+    constexpr static unsigned int MAX_ERROR_QUEUE_SIZE = 8;
+
 public:
-    void add(Error error) {
-        if (m_index < m_queue.size())
-            m_queue[m_index++] = error;
-    }
-
-    bool assert(bool condition, Error error) {
-        if (!condition)
-            add(error);
-        return condition;
-    }
-
-    bool hasError() {
-        return m_index > 0;
-    }
-
-    Error pop() {
-        return m_index == 0 ? Error::None : m_queue[--m_index];
-    }
+    void add(Error error);
+    bool assert(bool condition, Error error);
+    bool hasError();
+    Error pop();
 
 private:
     std::array<Error, MAX_ERROR_QUEUE_SIZE> m_queue;
     unsigned int m_index = 0;
 };
+
+extern ErrorManager EM;
+
+#endif // STMDSP_ERROR_HPP
 

@@ -277,5 +277,31 @@ bool mmc_lld_is_write_protected(MMCDriver *mmcp) {
  * @note    You can add your board-specific code here.
  */
 void boardInit(void) {
+    palSetLineMode(LINE_LED_RED, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetLineMode(LINE_LED_GREEN, PAL_MODE_OUTPUT_PUSHPULL);
+    palSetLineMode(LINE_LED_BLUE, PAL_MODE_OUTPUT_PUSHPULL);
+    palClearLine(LINE_LED_RED);
+    palClearLine(LINE_LED_GREEN);
+    palClearLine(LINE_LED_BLUE);
 
+    SCB->CPACR |= 0xF << 20; // Enable FPU
+
+    // Region 2: Data for algorithm thread and ADC/DAC buffers
+    // Region 3: Code for algorithm thread
+    // Region 4: User algorithm code
+    mpuConfigureRegion(MPU_REGION_2,
+                       0x20008000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_128K |
+                       MPU_RASR_ENABLE);
+    mpuConfigureRegion(MPU_REGION_3,
+                       0x0807F800,
+                       MPU_RASR_ATTR_AP_RO_RO | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_2K |
+                       MPU_RASR_ENABLE);
+    mpuConfigureRegion(MPU_REGION_4,
+                       0x10000000,
+                       MPU_RASR_ATTR_AP_RW_RW | MPU_RASR_ATTR_NON_CACHEABLE |
+                       MPU_RASR_SIZE_32K |
+                       MPU_RASR_ENABLE);
 }

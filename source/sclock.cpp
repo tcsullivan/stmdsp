@@ -1,3 +1,14 @@
+/**
+ * @file sclock.cpp
+ * @brief Manages sampling rate clock speeds.
+ *
+ * Copyright (C) 2021 Clyne Sullivan
+ *
+ * Distributed under the GNU GPL v3 or later. You should have received a copy of
+ * the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "sclock.hpp"
 
 GPTDriver *SClock::m_timer = &GPTD6;
@@ -24,7 +35,12 @@ const std::array<unsigned int, 6> SClock::m_rate_divs = {{
     /* 48k */ 100,
     /* 96k */ 50
 #else
-    4500, 2250, 1800, 1125, 750, 375
+    /* 8k  */ 4500,
+    /* 16k */ 2250,
+    /* 20k */ 1800,
+    /* 32k */ 1125,
+    /* 48k */ 750,
+    /* 96k */ 375
 #endif
 }};
 

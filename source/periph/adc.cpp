@@ -2,7 +2,7 @@
  * @file adc.cpp
  * @brief Manages signal reading through the ADC.
  *
- * Copyright (C) 2020 Clyne Sullivan
+ * Copyright (C) 2021 Clyne Sullivan
  *
  * Distributed under the GNU GPL v3 or later. You should have received a copy of
  * the GNU General Public License along with this program.
@@ -39,7 +39,7 @@ ADCConversionGroup ADC::m_group_config = {
     .end_cb = ADC::conversionCallback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
-    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
+    .cfgr2 = 0,//ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
 #if defined(TARGET_PLATFORM_H7)
     .ccr = 0,
     .pcsel = 0,
@@ -69,11 +69,11 @@ static void readAltCallback(ADCDriver *)
 }
 ADCConversionGroup ADC::m_group_config2 = {
     .circular = false,
-    .num_channels = 1,
+    .num_channels = 2,
     .end_cb = readAltCallback,
     .error_cb = nullptr,
     .cfgr = ADC_CFGR_EXTEN_RISING | ADC_CFGR_EXTSEL_SRC(13),  /* TIM6_TRGO */
-    .cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
+    .cfgr2 = 0,//ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_1 | ADC_CFGR2_OVSS_0, // Oversampling 2x
 #if defined(TARGET_PLATFORM_H7)
     .ccr = 0,
     .pcsel = 0,
@@ -88,10 +88,10 @@ ADCConversionGroup ADC::m_group_config2 = {
     .awd3cr = 0,
 #endif
     .smpr = {
-        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_12P5), 0
+        ADC_SMPR1_SMP_AN1(ADC_SMPR_SMP_2P5) | ADC_SMPR1_SMP_AN2(ADC_SMPR_SMP_2P5), 0
     },
     .sqr = {
-        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1),
+        ADC_SQR1_SQ1_N(ADC_CHANNEL_IN1) | ADC_SQR1_SQ2_N(ADC_CHANNEL_IN2),
         0, 0, 0
     },
 };
@@ -107,6 +107,7 @@ void ADC::begin()
 #else
     palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG); // Algorithm in
     palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG); // Potentiometer 1
+    palSetPadMode(GPIOC, 1, PAL_MODE_INPUT_ANALOG); // Potentiometer 2
 #endif
 
     adcStart(m_driver, &m_config);
@@ -135,15 +136,15 @@ void ADC::stop()
 
 adcsample_t ADC::readAlt(unsigned int id)
 {
-    if (id != 0)
+    if (id > 1)
         return 0;
-    static adcsample_t result[32] = {};
+    static adcsample_t result[16] = {};
     readAltDone = false;
-    adcStartConversion(m_driver2, &m_group_config2, result, 32);
-    while (!readAltDone)
-        ;
+    adcStartConversion(m_driver2, &m_group_config2, result, 8);
+    while (!readAltDone);
+        //__WFI();
     adcStopConversion(m_driver2);
-    return result[0];
+    return result[id];
 }
 
 void ADC::setRate(SClock::Rate rate)
@@ -181,13 +182,29 @@ void ADC::setRate(SClock::Rate rate)
     adcStart(m_driver, &m_config);
 #elif defined(TARGET_PLATFORM_L4)
     std::array<std::array<uint32_t, 3>, 6> m_rate_presets = {{
+        // PLLSAI2 sources MSI of 4MHz, divided by PLLM of /1 = 4MHz.
+        // 4MHz is then multiplied by PLLSAI2N (x8 to x86), with result
+        // between 64 and 344 MHz.
+        //
+        // SAI2N MUST BE AT LEAST 16 TO MAKE 64MHz MINIMUM.
+        //
+        // That is then divided by PLLSAI2R:
+        //     R of 0 = /2; 1 = /4, 2 = /6, 3 = /8.
+        // PLLSAI2 then feeds into the ADC, which has a prescaler of /10.
+        // Finally, the ADC's SMP value produces the desired sample rate.
+        //
+        // 4MHz * N / R / 10 / SMP = sample rate.
+        //
+        // With oversampling, must create faster clock
+        // (x2 oversampling requires x2 sample rate clock).
+        //
         //  Rate   PLLSAI2N  R  SMPR
-        {/* 8k  */ 8,        1, ADC_SMPR_SMP_12P5},
-        {/* 16k */ 16,       1, ADC_SMPR_SMP_12P5},
-        {/* 20k */ 20,       1, ADC_SMPR_SMP_12P5},
-        {/* 32k */ 32,       1, ADC_SMPR_SMP_12P5},
-        {/* 48k */ 24,       0, ADC_SMPR_SMP_12P5},
-        {/* 96k */ 73,       1, ADC_SMPR_SMP_6P5}   // Technically 96.05263kS/s
+        {/* 8k  */ 16,       1, ADC_SMPR_SMP_12P5}, // R3=32k (min), R1=64k
+        {/* 16k */ 16,       0, ADC_SMPR_SMP_12P5},
+        {/* 20k */ 20,       0, ADC_SMPR_SMP_12P5},
+        {/* 32k */ 32,       0, ADC_SMPR_SMP_12P5},
+        {/* 48k */ 48,       0, ADC_SMPR_SMP_12P5},
+        {/* 96k */ 73,       0, ADC_SMPR_SMP_6P5}   // Technically 96.05263kS/s
     }};
 
     auto& preset = m_rate_presets[static_cast<int>(rate)];
@@ -204,9 +221,9 @@ void ADC::setRate(SClock::Rate rate)
 
     m_group_config.smpr[0] = ADC_SMPR1_SMP_AN5(smpr);
 
-    // Set 2x oversampling
-    m_group_config.cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1;
-    m_group_config2.cfgr2 = ADC_CFGR2_ROVSE | ADC_CFGR2_OVSR_0 | ADC_CFGR2_OVSS_1;
+    // 8x oversample
+    m_group_config.cfgr2 = ADC_CFGR2_ROVSE | (2 << ADC_CFGR2_OVSR_Pos) | (3 << ADC_CFGR2_OVSS_Pos);
+    m_group_config2.cfgr2 = ADC_CFGR2_ROVSE | (2 << ADC_CFGR2_OVSR_Pos) | (3 << ADC_CFGR2_OVSS_Pos);
 #endif
 }
 

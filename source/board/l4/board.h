@@ -1502,4 +1502,8 @@ extern "C" {
 #endif
 #endif /* _FROM_ASM_ */
 
+#define LINE_LED_RED   PAL_LINE(GPIOC_BASE, 10U)
+#define LINE_LED_GREEN PAL_LINE(GPIOC_BASE, 11U)
+#define LINE_LED_BLUE  PAL_LINE(GPIOC_BASE, 12U)
+
 #endif /* BOARD_H */
