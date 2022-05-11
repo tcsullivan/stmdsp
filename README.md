@@ -1,25 +1,23 @@
 # stmdsp
 
-The `stmdsp` project enables certain STM32 development boards to be used as a digital signal processing (DSP) education tool.
+The *stmdsp* project enables certain STM32 development boards to be used as a digital signal processing (DSP) education tool. The solution is portable, and can be used without any external tools or lab equipment.
 
-The project consists of two parts: the firmware, which allows users to upload custom DSP algorithms to process signals in real-time; and the GUI currently named [stmdspgui](https://code.bitgloo.com/clyne/stmdspgui), which facilitates algorithm design, upload, and execution, while also providing numerous analysis features.
-
-The firmware for the device is written in C++, building on top of the [ChibiOS](https://www.chibios.org/dokuwiki/doku.php) real-time operating system.
+The project consists of three parts: the firmware, which allows users to upload custom DSP algorithms to process signals in real-time; the hardware, which provides the necessary circuitry for interfacing with signals and the host computer; and the computer software, a program currently named [stmdspgui](https://code.bitgloo.com/clyne/stmdspgui) that facilitates algorithm design and execution while also providing numerous analysis features.
 
 ## Features
 
-* Real-time signal processing: the input channel is read from the ADC, and the processed output is sent out over the DAC.
-* Signal sampling rates from 8kS/s up to 96kS/s.
-* Custom algorithms, uploaded over USB at run-time, can be applied to the input signal.
-* The second DAC channel can act as a signal generator, should no other input be available.
-* Analysis features, including measuring algorithm execution time and logging input and output samples.
+* Real-time signal processing: signal readings from the ADC are streamed through the loaded algorithm and outputted over the DAC.
+* Supports signal sampling rates from 8kS/s up to 96kS/s.
+* Supports signals between -3.3V and +3.3V, with adequate protection for the development board.
+* Custom algorithms are uploaded to the hardware at run-time, enabling a faster design and test process.
+* Parameter knobs allow for algorithm adjustments while the algorithm is running.
+* An on-board signal generator eliminates the need for external generators.
+* Numerous analysis features, including signal visualization and measuring algorithm execution time, eliminate the need for other external tools.
 
-## Supported development boards
+## Learn more
 
-This project is aided by a custom add-on board, which is designed to stack on top of STMicroelectronic's NUCLEO line of dev boards.
+See the [project's wiki](https://code.bitgloo.com/clyne/stmdsp/wiki/Home) for more details. The `doc` folder also contains add-on board schematics and a work-in-progress PDF guide (which may later be abandoned in favor of the wiki).
 
-At the moment, only the NUCLEO-L476RG board is fully supported.
+### Licensing
 
-## Programming instructions and more information
-
-See the `doc` folder for further project documentation, including a PDF guide.
+The *stmdsp*, *stmdspgui*, and ChibiOS projects are all licensed under version three of the GNU General Public License.
