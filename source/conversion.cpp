@@ -65,11 +65,9 @@ void ConversionManager::start()
     DAC::start(0, Samples::Out.data(), Samples::Out.size());
 }
 
-void ConversionManager::startMeasured()
+void ConversionManager::startMeasurement()
 {
-    Samples::Out.clear();
-    ADC::start(Samples::In.data(), Samples::In.size(), adcReadHandlerMeasure);
-    DAC::start(0, Samples::Out.data(), Samples::Out.size());
+    ADC::setOperation(adcReadHandlerMeasure);
 }
 
 void ConversionManager::stop()
@@ -157,12 +155,14 @@ void ConversionManager::threadRunner(void *)
                     asm("mov %0, sp" : "=r" (sp));
                     samples = entry(samples, size);
                     asm("mov sp, %0" :: "r" (sp));
+                    volatile auto testRead = *samples;
                 } else {
                     // Start execution timer:
                     asm("mov %0, sp; eor r0, r0; svc 2" : "=r" (sp));
                     samples = entry(samples, size);
                     // Stop execution timer:
                     asm("mov r0, #1; svc 2; mov sp, %0" :: "r" (sp));
+                    volatile auto testRead = *samples;
                 } 
             }
 

@@ -22,7 +22,8 @@ enum class Error : char
     BadUserCodeLoad,
     BadUserCodeSize,
     NotIdle,
-    ConversionAborted
+    ConversionAborted,
+    NotRunning
 };
 
 class ErrorManager

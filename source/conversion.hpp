@@ -31,8 +31,8 @@ public:
 
     // Begins sample conversion.
     static void start();
-    // Begins conversion with execution time measured.
-    static void startMeasured();
+    // Prepare to measure execution time of next conversion.
+    static void startMeasurement();
     // Stops conversion.
     static void stop();
 

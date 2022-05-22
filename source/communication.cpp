@@ -32,7 +32,7 @@ static void setBufferSize(unsigned char *);
 static void updateGenerator(unsigned char *);
 static void loadAlgorithm(unsigned char *);
 static void readStatus(unsigned char *);
-static void startConversionMeasure(unsigned char *);
+static void measureConversion(unsigned char *);
 static void startConversion(unsigned char *);
 static void stopConversion(unsigned char *);
 static void startGenerator(unsigned char *);
@@ -53,7 +53,7 @@ static const std::array<std::pair<char, void (*)(unsigned char *)>, 19> commandT
     {'D', updateGenerator},
     {'E', loadAlgorithm},
     {'I', readStatus},
-    {'M', startConversionMeasure},
+    {'M', measureConversion},
     {'R', startConversion},
     {'S', stopConversion},
     {'W', startGenerator},
@@ -159,12 +159,10 @@ void readStatus(unsigned char *)
     USBSerial::write(buf, sizeof(buf));
 }
 
-void startConversionMeasure(unsigned char *)
+void measureConversion(unsigned char *)
 {
-    if (EM.assert(run_status == RunStatus::Idle, Error::NotIdle)) {
-        run_status = RunStatus::Running;
-        ConversionManager::startMeasured();
-    }
+    if (EM.assert(run_status == RunStatus::Running, Error::NotRunning))
+        ConversionManager::startMeasurement();
 }
 
 void startConversion(unsigned char *)
@@ -177,7 +175,7 @@ void startConversion(unsigned char *)
 
 void stopConversion(unsigned char *)
 {
-    if (run_status == RunStatus::Running) {
+    if (EM.assert(run_status == RunStatus::Running, Error::NotRunning)) {
         ConversionManager::stop();
         run_status = RunStatus::Idle;
     }
