@@ -1,18 +1,21 @@
 # stmdsp
 
-The *stmdsp* project enables certain STM32 development boards to be used as a digital signal processing (DSP) education tool. The solution is portable, and can be used without any external tools or lab equipment.
+The *stmdsp* project enables certain [NUCLEO development boards](https://www.st.com/en/evaluation-tools/stm32-nucleo-boards.html) to be used as an educational tool for digital signal processing (DSP). The solution is portable, and can be used without any external tools or lab equipment.
 
-The project consists of three parts: the firmware, which allows users to upload custom DSP algorithms to process signals in real-time; the hardware, which provides the necessary circuitry for interfacing with signals and the host computer; and the computer software, a program currently named [stmdspgui](https://code.bitgloo.com/clyne/stmdspgui) that facilitates algorithm design and execution while also providing numerous analysis features.
+The project consists of three parts:
+1. Firmware that allows users to upload custom DSP algorithms to process signals in real-time.
+2. A [custom add-on board](https://code.bitgloo.com/clyne/stmdsp/wiki/DSP-add-on-board) which provides the necessary circuitry for interfacing with signals and the host computer.
+3. [Computer software](https://code.bitgloo.com/clyne/stmdspgui) that facilitates algorithm design and execution while also providing numerous analysis features.
 
 ## Features
 
-* Real-time signal processing: signal readings from the ADC are streamed through the loaded algorithm and outputted over the DAC.
-* Supports signal sampling rates from 8kS/s up to 96kS/s.
+* Real-time signal processing: signal readings from the ADC are streamed through the loaded algorithm binary and out the DAC.
+* Custom algorithms are uploaded to the hardware at run-time, enabling a fast design and test process.
+* Supports signal sampling rates from 8kS/s up to 96kS/s, with buffer size of up to 4,096 samples.
 * Supports signals between -3.3V and +3.3V, with adequate protection for the development board.
-* Custom algorithms are uploaded to the hardware at run-time, enabling a faster design and test process.
-* Parameter knobs allow for algorithm adjustments while the algorithm is running.
-* An on-board signal generator eliminates the need for external generators.
-* Numerous analysis features, including signal visualization and measuring algorithm execution time, eliminate the need for other external tools.
+* Two parameter knobs allow for algorithm adjustments while the algorithm is running.
+* An on-board signal generator eliminates the need for inputs from external hardware.
+* Numerous analysis features, including signal visualization and algorithm execution time measurement, eliminate the need of other equipment such as oscilloscopes.
 
 ## Learn more
 
